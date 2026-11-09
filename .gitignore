@@ -1,0 +1,18 @@
+# Local environment and credentials; safe examples may be committed.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*matkhau*.txt
+*password*.txt
+*.secret.local
+prompts/
+# Supabase local state and secrets (keep legitimate source/config trackable).
+supabase/.temp/
+supabase/.branches/
+supabase/.secrets/
+supabase/secrets.env
+supabase/secrets.*.env
+
+# Temporary local browser verification artifacts.
+/.local-qa/
