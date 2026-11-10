@@ -2,11 +2,11 @@
 
 ## Trạng thái và nguyên tắc
 
-R0-01 dựng web tĩnh bằng HTML, CSS và JavaScript thuần. R0-02 bổ sung tọa độ a1–h4 và giao diện Sáng/Tối trên bộ khung đó. **Bản khung — chưa chơi được.** Phương châm: **ĐƠN GIẢN NHƯNG HIỆU QUẢ**; logic trước, thẩm mỹ sau. Không framework, build system, dependency nặng hoặc kiến trúc nhiều lớp.
+R0-01 dựng web tĩnh bằng HTML, CSS và JavaScript thuần. R0-02 bổ sung tọa độ a1–h4 và giao diện Sáng/Tối. **R2-01 đã chơi Offline hai người cùng máy.** Phương châm: **ĐƠN GIẢN NHƯNG HIỆU QUẢ**; logic trước, thẩm mỹ sau. Không framework, build system, dependency nặng hoặc kiến trúc nhiều lớp.
 
-R1-01 bổ sung engine lật/đi/ăn thuần JavaScript và unit test, tách khỏi UI. R1-02 bổ sung thắng/thua và hòa tự động theo quy ước sản phẩm. Trang R0-02 vẫn giữ nguyên, chưa nối gameplay. Hợp đồng API, luật đã đối chiếu và giới hạn nằm trong `docs/RULES.md`.
+R1-01 bổ sung engine lật/đi/ăn thuần JavaScript và unit test, tách khỏi UI. R1-02 bổ sung thắng/thua và hòa tự động theo quy ước sản phẩm. R2-01 nối engine vào trang bằng ES module, giữ tọa độ/hướng/theme của R0-02. Hợp đồng API và luật trong `docs/RULES.md` giữ nguyên; mô tả “chưa nối UI” trong tài liệu R1 ghi trạng thái tại mốc R1.
 
-Nguồn yêu cầu: `prompts/R0-01-khoi-tao-banqi.md`, `prompts/R0-02-toa-do-dark-mode.md`, `prompts/R1-01-engine-banqi.md` và `prompts/R1-02-ket-thuc-hoa-banqi.md`. Project Owner quyết định sản phẩm; ChatGPT phụ trách đặc tả/prompt/QA; Codex triển khai trong workspace `banqi-game`. Các quyết định dưới đây không đồng nghĩa với tính năng đã triển khai.
+Nguồn yêu cầu: `prompts/R0-01-khoi-tao-banqi.md`, `prompts/R0-02-toa-do-dark-mode.md`, `prompts/R1-01-engine-banqi.md`, `prompts/R1-02-ket-thuc-hoa-banqi.md` và `prompts/R2-01-offline-gameplay.md`. Project Owner quyết định sản phẩm; ChatGPT phụ trách đặc tả/prompt/QA; Codex triển khai trong workspace `banqi-game`. Các quyết định dưới đây không đồng nghĩa với tính năng đã triển khai.
 
 ## Quyết định sản phẩm đã chốt
 
@@ -18,7 +18,7 @@ Nguồn yêu cầu: `prompts/R0-01-khoi-tao-banqi.md`, `prompts/R0-02-toa-do-dar
 - Quân đi một ô trống theo chiều ngang/dọc, không đi chéo.
 - Pháo đi một ô trống; chỉ ăn trên cùng hàng/cột khi có đúng một quân làm ngòi, không ăn kiểu liền kề. Ngòi có thể là quân úp. Quân úp không bị ăn.
 - Mã ăn được Pháo theo thứ bậc Banqi Đài Loan thông dụng. Tốt ăn được Tướng; Tướng không ăn được Tốt.
-- Luật lật/đi/ăn đã được đối chiếu và có kiểm thử trong R1-01; kết thúc ván và hòa tự động có trong R1-02, theo `docs/RULES.md`. Bản khung UI vẫn chưa chơi được; chưa có các chức năng gameplay Online.
+- Luật lật/đi/ăn đã được đối chiếu và có kiểm thử trong R1-01; kết thúc ván và hòa tự động có trong R1-02, theo `docs/RULES.md`. R2-01 đã nối gameplay Offline; chưa có các chức năng Online.
 
 ### Lộ trình và giới hạn sản phẩm
 
@@ -117,16 +117,32 @@ Trục được dựng từ phép ánh xạ nghịch đảo, nằm ngoài khung 
 - Giữ 102 test luật R1-01, chỉ cập nhật assertion schema và kỳ vọng trạng thái phù hợp phần mở rộng. `tests/endgame.test.cjs` kiểm tra các kết quả, biên 59/60, lặp không liên tiếp, khóa công khai, ưu tiên, tính bất biến và khóa ván sau kết thúc. Fixture không đặt trước kết quả.
 - Giữ nguyên UI R0-02 và test R0; chưa nối gameplay, không Online/Bot/đồng hồ/xin hòa/chịu thua, không lưu replay hay lịch sử nước đi.
 
-## Chưa triển khai và phạm vi các giai đoạn sau
+## Phần bổ sung trong R2-01
 
-| Giai đoạn | Công việc dự kiến | Trạng thái sau R1-02 |
+- `js/offline.mjs` import đúng bốn API engine. Private state thuộc closure trong module; không gắn lên `window`, không stringify/log hoặc đưa vào DOM. Chỉ public snapshot/actions/event được dùng để chọn/hiển thị. Engine và toàn bộ luật R1-02 giữ nguyên.
+- Ván mới xáo đủ 32 quân, ngẫu nhiên người đầu, chưa phân màu. Lật đầu phân màu theo engine; lật sau vẫn kết thúc một lượt dù mở quân đối phương. UI ghi Người 1/2 và Đỏ/Đen sau khi phân màu.
+- Click/tap/Enter/Space trên nút ô để lật, chọn, đi hoặc ăn. Chọn lại để bỏ, chọn quân mình khác để đổi; có thể lật khi đang chọn. Đích đi có dấu chấm, đích ăn có viền nét đứt; focus bàn phím vẫn rõ trên đích ăn. Nước sai chỉ thay một phản hồi ngắn, không đổi state/lượt hoặc spam thông báo.
+- Render kết quả thắng/hòa và lý do từ `result`, khóa input khi `finished`. Ván mới hỏi confirm khi bỏ ván đang chơi đã có nước; hủy giữ nguyên, đồng ý khởi tạo bằng `createGame`. Không save/replay, undo, xin hòa/chịu thua hay đồng hồ.
+- 32 ô là native button với ID/data-x/data-y cũ; mỗi ô giữ một `.piece`. Quân úp chỉ có dấu `?` và nhãn `Quân úp tại a1`, không có màu/loại bí mật trong DOM/attribute. Đỏ dùng `帥 仕 相 俥 傌 炮 兵` với viền kép; Đen dùng `將 士 象 車 馬 砲 卒` với viền đơn, theo thứ tự Tướng/Sĩ/Tượng/Xe/Mã/Pháo/Tốt.
+- Grid của nút ô có cột `minmax(0, 1fr)` để mặt quân không co theo độ rộng ký tự; mặt quân rộng 85%, tỉ lệ 1:1. Chữ ở hướng Dọc có kích thước phù hợp ô lớn. Bảng màu giữ nền R0-02 và thêm màu quân/đích đi cho Sáng/Tối, không animation/SVG.
+- Đổi hướng/theme giữ quân, lượt, kết quả và lựa chọn đúng tọa độ, không gọi engine. Hợp đồng theme R0-02 và áp dụng sớm trước body vẫn giữ; chỉ theme được lưu localStorage. Tải lại trang tạo ván mới.
+- `index.html` nạp controller bằng `type="module"`; mở qua Live Server/HTTP theo README, không hỗ trợ double-click `file://`. Classic `app.js` đăng ký dựng bàn trước controller, đồng thời giữ các hàm ánh xạ cho test Node.
+- Test browser chuyển sang HTTP server chỉ có route allowlist. Fixture hiếm chỉ thay lần khởi tạo đầu trong server của test, dùng engine thật cho mọi nước và kết quả; production không có API nạp state/debug/cheat. Ván mới tiếp theo trong test vẫn gọi `createGame` thật.
+- Giữ 175 test hồi quy; cập nhật test UI cũ từ placeholder sang nhãn/nút quân úp và HTTP. Kỳ vọng “click ô không làm gì” được thay bằng các ca lật đúng một quân ở suite gameplay. Thêm 38 test tính test cha: gameplay, bốn kết thúc thật, ván đầy đủ 83 hành động, confirm, keyboard/chuột/touch, DOM công khai, 16 tổ hợp viewport/theme/hướng, độ tròn/kích thước/tương phản. Tổng 213 test; lệnh và giới hạn kiểm tra ở README.
+- Checkpoint R0–R1 là `663b03b374c411b1aa5307a122adffcb0e37ccde`, 15 file nguồn/tài liệu/test và `.gitignore`; không có secret, prompt bị ignore hoặc QA artifact. R2-01 nằm trên working tree, không commit thêm/push/deploy. Không sửa `.gitignore`, `prompts/`, engine hoặc test luật R1 trong R2-01.
+
+Các phần R0/R1 phía trên mô tả từng mốc lịch sử; trạng thái hiện tại là R2-01. Offline vẫn không bảo vệ bộ nhớ khỏi DevTools. Chưa kiểm tra điện thoại thật, Safari/Firefox hoặc trình đọc màn hình thật; Chrome PC/mobile giả lập và cây accessibility được kiểm tra tự động, ảnh chụp được xem lại.
+
+## Phạm vi hiện tại và các giai đoạn sau
+
+| Giai đoạn | Công việc | Trạng thái sau R2-01 |
 | --- | --- | --- |
-| Offline hai người | Kết nối engine với lật/đi/ăn, khởi tạo ván, phân màu, lượt đi và kết thúc ván | Chưa triển khai |
+| Offline hai người | Kết nối engine với lật/đi/ăn, khởi tạo ván, phân màu, lượt đi và kết thúc ván | Đã triển khai bằng Unicode |
 | Online hai người | Backend Supabase riêng, mã phòng, đồng hồ, cầu hòa/chịu thua/kết thúc; bảo mật quân úp | Chưa triển khai |
 | Bot | Một Bot mạnh, chỉ dùng thông tin công khai và xác suất | Chưa triển khai |
 | Hoàn thiện giao diện | SVG của tác giả, âm thanh, animation sau khi gameplay ổn định | Chưa triển khai |
 
-R1-02 chỉ hoàn thành phần engine trong phạm vi prompt. Bước tiếp theo được đề xuất là nối engine vào gameplay Offline sau khi chủ dự án duyệt; chưa tự triển khai.
+Chỉ đề xuất bước tiếp theo: đánh giá/trải nghiệm Offline thực tế rồi mới hoàn thiện UI/SVG. Chưa bắt đầu R2-02 hoặc giai đoạn khác.
 
 ## Ràng buộc thực hiện R0
 

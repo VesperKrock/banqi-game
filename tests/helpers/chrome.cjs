@@ -4,10 +4,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const { pathToFileURL } = require("node:url");
+const startServer = require("./http.cjs");
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-module.exports = async function launchChrome() {
+module.exports = async function launchChrome({ suite = "regression" } = {}) {
   const executable = [process.env.CHROME_PATH,
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
@@ -16,9 +16,10 @@ module.exports = async function launchChrome() {
   ].find((candidate) => candidate && fs.existsSync(candidate));
   if (!executable) throw new Error("Chrome chưa có: đặt CHROME_PATH; không tự cài trình duyệt.");
   const root = path.resolve(__dirname, "../..");
-  const output = path.join(root, ".local-qa/r0-02");
+  const output = path.join(root, ".local-qa/r2-01", suite);
   fs.mkdirSync(output, { recursive: true });
   const profile = fs.mkdtempSync(path.join(output, "profile-"));
+  const server = await startServer();
   const browser = spawn(executable, ["--headless=new", "--disable-gpu", "--no-first-run",
     "--no-default-browser-check", "--disable-background-networking", "--remote-debugging-port=0",
     `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore", windowsHide: true });
@@ -42,6 +43,7 @@ module.exports = async function launchChrome() {
       socket.close();
     }
     if (browser.exitCode === null) browser.kill();
+    await server.close();
   }
 
   try {
@@ -63,7 +65,7 @@ module.exports = async function launchChrome() {
           (message.method === "Log.entryAdded" && message.params.entry.level === "error") ||
           (message.method === "Runtime.consoleAPICalled" && message.params.type === "error")) errors.push(message);
       if (events.has(message.method)) {
-        events.get(message.method)();
+        events.get(message.method)(message.params);
         events.delete(message.method);
       }
       const callback = pending.get(message.id);
@@ -85,12 +87,16 @@ module.exports = async function launchChrome() {
     return result.result.value;
   }
 
-  async function navigate() {
-    const loaded = new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { events.delete("Page.loadEventFired"); reject(new Error("Page load timeout")); }, 10000);
-      events.set("Page.loadEventFired", () => { clearTimeout(timer); resolve(); });
+  function waitForEvent(method) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { events.delete(method); reject(new Error(`Event timeout: ${method}`)); }, 10000);
+      events.set(method, (params) => { clearTimeout(timer); resolve(params); });
     });
-    await send("Page.navigate", { url: pathToFileURL(path.join(root, "index.html")).href });
+  }
+
+  async function navigate() {
+    const loaded = waitForEvent("Page.loadEventFired");
+    await send("Page.navigate", { url: server.url });
     await loaded;
     await evaluate("window.originalCells = [...document.querySelectorAll('.cell')]");
   }
@@ -102,5 +108,5 @@ module.exports = async function launchChrome() {
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(data, "base64"));
   }
 
-  return { send, evaluate, navigate, screenshot, close, errors, output };
+  return { send, evaluate, navigate, screenshot, close, errors, output, waitForEvent, useGame: server.useGame };
 };

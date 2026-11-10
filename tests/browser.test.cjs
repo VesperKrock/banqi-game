@@ -27,12 +27,13 @@ function inspectBoard(theme, orientation) {
     const x = id % 8, y = Math.floor(id / 8), label = "abcdefgh"[x] + (y + 1);
     ensure(cell === window.originalCells[id] && cell.id === `cell-${id}`, "Stable DOM identity");
     ensure(cell.dataset.x === String(x) && cell.dataset.y === String(y), "Stable logical coordinates");
-    ensure(cell.title.includes(label) && cell.getAttribute("aria-label") === `Ô ${label}, quân úp`, "Accessible coordinate");
+    ensure(cell.title.includes(label) && cell.getAttribute("aria-label") === `Quân úp tại ${label}`, "Accessible coordinate");
     ensure(cell.tabIndex === 0, "Keyboard access to cell coordinate");
     ensure(Math.round(rect.left) === lefts[vertical ? y : x] && Math.round(rect.top) === tops[vertical ? x : 3 - y], "Physical mapping");
-    ensure(cell.children.length === 1 && cell.textContent === "?", "Only placeholder inside cell");
+    ensure(cell.children.length === 1 && cell.textContent === "?", "Only neutral face-down piece inside cell");
     const piece = cell.firstElementChild.getBoundingClientRect();
     ensure(piece.left >= rect.left && piece.right <= rect.right && piece.top >= rect.top && piece.bottom <= rect.bottom, "Piece fits cell");
+    ensure(Math.abs(piece.width - piece.height) < 1 && piece.width >= rect.width * 0.65, "Face-down piece stays circular and readable");
   }
   const axes = [document.getElementById("axis-left"), document.getElementById("axis-bottom")];
   ensure(axes[0].textContent === (vertical ? "abcdefgh" : "4321"), "Left axis order");
@@ -84,7 +85,7 @@ function contrastReport() {
   return { minimumText: Math.min(...ratios), focusOnPage: ratio(focus, style.backgroundColor), focusOnCell: ratio(focus, getComputedStyle(document.querySelector(".cell")).backgroundColor) };
 }
 
-test("Chrome R0-02 — file://, tọa độ và theme", { timeout: 90000 }, async (t) => {
+test("Chrome hồi quy R0-02 — HTTP, tọa độ và theme", { timeout: 90000 }, async (t) => {
   const browser = await launchChrome();
   t.after(() => browser.close());
   const { send, evaluate, navigate } = browser;
@@ -186,7 +187,6 @@ test("Chrome R0-02 — file://, tọa độ và theme", { timeout: 90000 }, asyn
         }
       }
     }
-    await click("#cell-0");
     assert.equal(await evaluate("document.getElementById('board').outerHTML === window.beforeBoard"), true);
   });
 
@@ -215,7 +215,7 @@ test("Chrome R0-02 — file://, tọa độ và theme", { timeout: 90000 }, asyn
       for (const name of ["Sáng", "Tối", "Ngang", "Dọc"]) {
         assert.ok(nodes.some((node) => node.role?.value === "button" && node.name?.value === name && node.properties.some((property) => property.name === "pressed")), name);
       }
-      for (const label of ["a1", "h4"]) assert.ok(nodes.some((node) => node.name?.value === `Ô ${label}, quân úp`));
+      for (const label of ["a1", "h4"]) assert.ok(nodes.some((node) => node.role?.value === "button" && node.name?.value === `Quân úp tại ${label}`));
       contrasts[theme] = await evaluate(`(${contrastReport})()`);
       assert.ok(contrasts[theme].minimumText >= 4.5, JSON.stringify(contrasts[theme]));
       assert.ok(contrasts[theme].focusOnPage >= 3 && contrasts[theme].focusOnCell >= 3);

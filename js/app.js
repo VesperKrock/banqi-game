@@ -69,13 +69,14 @@ function createBoard() {
 
   for (let y = 0; y < BOARD_ROWS; y += 1) {
     for (let x = 0; x < BOARD_COLUMNS; x += 1) {
-      const cell = document.createElement("li");
+      const cell = document.createElement("button");
+      cell.type = "button";
       cell.id = `cell-${y * BOARD_COLUMNS + x}`;
       cell.className = "cell";
       cell.dataset.x = String(x);
       cell.dataset.y = String(y);
-      cell.title = `Ô ${coordinateLabel(x, y)} — quân úp`;
-      cell.setAttribute("aria-label", `Ô ${coordinateLabel(x, y)}, quân úp`);
+      cell.title = `Quân úp tại ${coordinateLabel(x, y)}`;
+      cell.setAttribute("aria-label", cell.title);
       cell.tabIndex = 0;
 
       const piece = document.createElement("span");
@@ -128,7 +129,8 @@ function createBoard() {
   setOrientation("horizontal");
 }
 
-// Classic script works with file://; Node's built-in runner tests the same mapping.
+// Apply theme before paint; build the stable board before the module controller starts.
+// Node's built-in runner tests these same coordinate mappings.
 if (typeof document !== "undefined") {
   initializeTheme();
   document.addEventListener("DOMContentLoaded", createBoard);

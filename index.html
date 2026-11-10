@@ -3,16 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Bản khung Banqi với 32 ô úp, tọa độ a1–h4, hướng ngang/dọc và giao diện sáng/tối.">
-    <title>Banqi — Bản khung</title>
+    <meta name="description" content="Chơi Banqi Offline hai người cùng máy, với tọa độ a1–h4, hướng ngang/dọc và giao diện sáng/tối.">
+    <title>Banqi — Offline hai người</title>
     <!-- Apply the saved/system theme before the stylesheet and page content. -->
     <script src="./js/app.js"></script>
+    <script type="module" src="./js/offline.mjs"></script>
     <link rel="stylesheet" href="./style.css">
   </head>
   <body>
     <main>
       <header>
-        <p class="eyebrow">Cờ tướng lật · R0-02</p>
+        <p class="eyebrow">Cờ tướng lật</p>
         <div class="header-toolbar">
           <h1>Banqi</h1>
           <div class="theme-controls" role="group" aria-label="Giao diện sáng/tối">
@@ -20,8 +21,13 @@
             <button type="button" data-theme="dark" aria-pressed="false"><span class="selection-mark" aria-hidden="true">✓</span>Tối</button>
           </div>
         </div>
-        <p class="notice">Bản khung — chưa chơi được.</p>
-        <p>32 ô úp để kiểm tra cách hiển thị bàn cờ. Chưa có thao tác lật, đi hoặc ăn quân.</p>
+        <p class="notice">Offline · Hai người cùng máy</p>
+        <p>Lật một quân hoặc chọn quân của mình để đi / ăn. Hai người thay phiên trên cùng thiết bị.</p>
+        <div class="game-toolbar">
+          <p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">Đang mở ván…</p>
+          <button type="button" id="new-game">Ván mới</button>
+        </div>
+        <p id="player-colors">Người 1: chưa phân màu · Người 2: chưa phân màu</p>
       </header>
 
       <section aria-labelledby="board-heading">
@@ -35,11 +41,12 @@
         <p id="board-status" class="board-status" role="status">Ngang · 8 cột × 4 hàng</p>
         <div id="board-shell" class="board-shell" data-orientation="horizontal">
           <div id="axis-left" class="axis axis-left" aria-hidden="true"></div>
-          <ol id="board" class="board" data-orientation="horizontal" aria-label="32 ô úp, tọa độ a1 đến h4" role="list"></ol>
+          <div id="board" class="board" data-orientation="horizontal" aria-label="Bàn cờ 32 ô, tọa độ a1 đến h4" role="group"></div>
           <div id="axis-bottom" class="axis axis-bottom" aria-hidden="true"></div>
         </div>
-        <p class="board-help">Tọa độ a1–h4 giữ nguyên khi đổi hướng bàn.</p>
-        <noscript><p>Hãy bật JavaScript để xem 32 ô và chuyển hướng bàn cờ.</p></noscript>
+        <p id="action-feedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true">Mở trang qua Live Server / HTTP để chơi.</p>
+        <p class="board-help">Ô có dấu ·: đi được; viền nét đứt: ăn được. Bấm lại quân để bỏ chọn. Tab rồi Enter / Space để thao tác. Tọa độ a1–h4 giữ nguyên khi đổi hướng.</p>
+        <noscript><p>Hãy bật JavaScript và mở trang qua HTTP để chơi Offline.</p></noscript>
       </section>
     </main>
   </body>

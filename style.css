@@ -14,7 +14,12 @@
   --cell-bg: #fbf5e9;
   --cell-border: #bda17b;
   --piece-bg: #fffdf8;
-  --piece-ink: #842d27;
+  --piece-ink: #62574a;
+  --red-ink: #9c211c;
+  --red-bg: #fff5e8;
+  --black-ink: #24303a;
+  --black-bg: #e0e5e8;
+  --move-bg: #e0ecf1;
   --axis-ink: #62574a;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
@@ -38,7 +43,12 @@
   --cell-bg: #2b3238;
   --cell-border: #847b6c;
   --piece-bg: #383c3f;
-  --piece-ink: #ffb5a7;
+  --piece-ink: #d4c9b7;
+  --red-ink: #ffb9aa;
+  --red-bg: #4a292b;
+  --black-ink: #e2ebf5;
+  --black-bg: #202e3c;
+  --move-bg: #344b57;
   --axis-ink: #d4c9b7;
 }
 
@@ -60,7 +70,12 @@
     --cell-bg: #2b3238;
     --cell-border: #847b6c;
     --piece-bg: #383c3f;
-    --piece-ink: #ffb5a7;
+    --piece-ink: #d4c9b7;
+    --red-ink: #ffb9aa;
+    --red-bg: #4a292b;
+    --black-ink: #e2ebf5;
+    --black-bg: #202e3c;
+    --move-bg: #344b57;
     --axis-ink: #d4c9b7;
   }
 }
@@ -107,14 +122,14 @@ h2 {
   font-weight: 700;
 }
 
-.header-toolbar, .board-toolbar, .orientation-controls, .theme-controls {
+.header-toolbar, .board-toolbar, .game-toolbar, .orientation-controls, .theme-controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.header-toolbar, .board-toolbar {
+.header-toolbar, .board-toolbar, .game-toolbar {
   justify-content: space-between;
   margin-bottom: 0.75rem;
 }
@@ -136,7 +151,7 @@ button {
   cursor: pointer;
 }
 
-button[aria-pressed="true"] {
+button:not(.cell)[aria-pressed="true"] {
   border-color: var(--active-bg);
   color: var(--active-text);
   background: var(--active-bg);
@@ -223,8 +238,12 @@ button:focus-visible, .cell:focus-visible {
 
 .cell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
+  gap: 0;
   min-width: 0;
+  min-height: 0;
+  padding: 0;
   aspect-ratio: 1;
   border: 1px solid var(--cell-border);
   border-radius: 0.3rem;
@@ -234,7 +253,7 @@ button:focus-visible, .cell:focus-visible {
 .piece {
   display: grid;
   place-items: center;
-  width: 72%;
+  width: 85%;
   aspect-ratio: 1;
   border: 1px solid var(--piece-ink);
   border-radius: 50%;
@@ -243,6 +262,61 @@ button:focus-visible, .cell:focus-visible {
   font-size: clamp(0.875rem, 3vw, 2rem);
   font-weight: 700;
   line-height: 1;
+}
+
+.board[data-orientation="vertical"] .piece {
+  font-size: clamp(1.25rem, 6vw, 2rem);
+}
+
+.piece-red {
+  color: var(--red-ink);
+  background: var(--red-bg);
+  border: 3px double currentColor;
+}
+
+.piece-black {
+  color: var(--black-ink);
+  background: var(--black-bg);
+  border: 2px solid currentColor;
+}
+
+.piece-empty {
+  background: transparent;
+  border-color: transparent;
+  color: var(--focus);
+}
+
+.cell.is-selected {
+  box-shadow: inset 0 0 0 3px var(--focus);
+}
+
+.cell.can-move {
+  background: var(--move-bg);
+}
+
+.cell.can-capture {
+  outline: 2px dashed var(--focus);
+  outline-offset: -3px;
+}
+
+.cell:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -4px;
+}
+
+.cell[aria-disabled="true"] {
+  cursor: default;
+}
+
+.game-status {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-weight: 700;
+}
+
+.action-feedback {
+  margin-top: 0.75rem;
+  min-height: 3em;
 }
 
 .board-help {
