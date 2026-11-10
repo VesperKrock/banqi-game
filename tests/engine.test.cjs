@@ -69,7 +69,7 @@ test("Khởi tạo đủ 32 quân, 16 mỗi màu, đúng cơ cấu, tất cả �
   }
   assert.ok(state.board.every((p) => p.faceDown === true));
   assert.equal(new Set(state.board).size, 32, "No shared piece objects");
-  assert.deepEqual(Object.keys(state).sort(), ["board", "captured", "noProgressPly", "playerColors", "positionCounts", "result", "status", "turn"]);
+  assert.deepEqual(Object.keys(state).sort(), ["board", "captured", "chaseFaults", "nextVisibleId", "noProgressPly", "playerColors", "ply", "positionCounts", "positionLastPlies", "quietDrawHold", "result", "runs", "status", "turn", "visibleIds"]);
 });
 
 test("Nguồn random tái lập, ván độc lập, không lưu seed hay random trong state", () => {
@@ -346,7 +346,8 @@ test("Public ban đầu chỉ có 32 occupied/faceDown, không màu/loại/ID/se
   const publicState = getPublicState(state);
   assert.deepEqual(publicState, { board: Array.from({ length: 32 }, () => ({ occupied: true, faceDown: true })),
     turn: 0, playerColors: [null, null], captured: [], status: "playing", result: null,
-    noProgressPly: 0, repetitionCount: 1 });
+    noProgressPly: 0, repetitionCount: 1,
+    chase: { faults: [0, 0], runs: [[], []], drawDeferred: [], warnings: [] } });
   assert.doesNotMatch(JSON.stringify(publicState), /PRIVATE_ONLY|"red"|"black"|"seed"|"metadata"|"general"|"pawn"/);
 });
 
@@ -356,7 +357,7 @@ test("Public/event chỉ cho thấy quân đã lật hoặc đã ăn, không met
     h4: { ...piece("black", "general", true), id: "PRIVATE_ONLY_HIDDEN" } });
   state.captured.push({ color: "black", type: "horse", secret: "PRIVATE_ONLY_PAST" });
   const publicState = getPublicState(state);
-  assert.deepEqual(publicState.board[at("a1")], { occupied: true, faceDown: false, color: "red", type: "rook" });
+  assert.deepEqual(publicState.board[at("a1")], { occupied: true, faceDown: false, color: "red", type: "rook", visibleId: "v1" });
   assert.deepEqual(publicState.board[at("h4")], { occupied: true, faceDown: true });
   assert.deepEqual(publicState.captured, [{ color: "black", type: "horse" }]);
   const result = checkAction(state, 0, move("a1", "a2"), true);

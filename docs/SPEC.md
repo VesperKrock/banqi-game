@@ -4,7 +4,7 @@
 
 R0-01 dựng web tĩnh bằng HTML, CSS và JavaScript thuần. R0-02 bổ sung tọa độ a1–h4 và giao diện Sáng/Tối. **R2-01 đã chơi Offline hai người cùng máy.** Phương châm: **ĐƠN GIẢN NHƯNG HIỆU QUẢ**; logic trước, thẩm mỹ sau. Không framework, build system, dependency nặng hoặc kiến trúc nhiều lớp.
 
-R1-01 bổ sung engine lật/đi/ăn thuần JavaScript và unit test, tách khỏi UI. R1-02 bổ sung thắng/thua và hòa tự động theo quy ước sản phẩm. R2-01 nối engine vào trang bằng ES module, giữ tọa độ/hướng/theme của R0-02. Hợp đồng API và luật trong `docs/RULES.md` giữ nguyên; mô tả “chưa nối UI” trong tài liệu R1 ghi trạng thái tại mốc R1.
+R1-01 bổ sung engine lật/đi/ăn thuần JavaScript và unit test, tách khỏi UI. R1-02 bổ sung thắng/thua và hòa tự động theo quy ước sản phẩm. R2-01 nối engine vào trang bằng ES module, giữ tọa độ/hướng/theme của R0-02. **R2-03A đã thêm trường tróc trong engine, unit test và tài liệu**, giữ bốn API/action/event, bổ sung schema public trong [RULES.md](RULES.md). UI cảnh báo/lỗi/lý do thua mới chưa triển khai, dành cho R2-03B.
 
 Nguồn yêu cầu: `prompts/R0-01-khoi-tao-banqi.md`, `prompts/R0-02-toa-do-dark-mode.md`, `prompts/R1-01-engine-banqi.md`, `prompts/R1-02-ket-thuc-hoa-banqi.md` và `prompts/R2-01-offline-gameplay.md`. Project Owner quyết định sản phẩm; ChatGPT phụ trách đặc tả/prompt/QA; Codex triển khai trong workspace `banqi-game`. Các quyết định dưới đây không đồng nghĩa với tính năng đã triển khai.
 
@@ -131,18 +131,34 @@ Trục được dựng từ phép ánh xạ nghịch đảo, nằm ngoài khung 
 - Giữ 175 test hồi quy; cập nhật test UI cũ từ placeholder sang nhãn/nút quân úp và HTTP. Kỳ vọng “click ô không làm gì” được thay bằng các ca lật đúng một quân ở suite gameplay. Thêm 38 test tính test cha: gameplay, bốn kết thúc thật, ván đầy đủ 83 hành động, confirm, keyboard/chuột/touch, DOM công khai, 16 tổ hợp viewport/theme/hướng, độ tròn/kích thước/tương phản. Tổng 213 test; lệnh và giới hạn kiểm tra ở README.
 - Checkpoint R0–R1 là `663b03b374c411b1aa5307a122adffcb0e37ccde`, 15 file nguồn/tài liệu/test và `.gitignore`; không có secret, prompt bị ignore hoặc QA artifact. R2-01 nằm trên working tree, không commit thêm/push/deploy. Không sửa `.gitignore`, `prompts/`, engine hoặc test luật R1 trong R2-01.
 
-Các phần R0/R1 phía trên mô tả từng mốc lịch sử; trạng thái hiện tại là R2-01. Offline vẫn không bảo vệ bộ nhớ khỏi DevTools. Chưa kiểm tra điện thoại thật, Safari/Firefox hoặc trình đọc màn hình thật; Chrome PC/mobile giả lập và cây accessibility được kiểm tra tự động, ảnh chụp được xem lại.
+Các phần R0/R1/R2-01 phía trên mô tả từng mốc lịch sử; UI hiện giữ R2-01, engine đã mở rộng tới R2-03A. Offline vẫn không bảo vệ bộ nhớ khỏi DevTools. Chưa kiểm tra điện thoại thật, Safari/Firefox hoặc trình đọc màn hình thật; Chrome PC/mobile giả lập và cây accessibility được kiểm tra tự động, ảnh chụp được xem lại tại R2-01.
+
+## R2-02 — rà soát luật, chưa đổi runtime
+
+**Tại mốc R2-02, trường tróc chờ duyệt và chưa triển khai; ba quyết định sau đó đã được chốt ở R2-03A.** Xem [CHASE_RULE_DESIGN.md](CHASE_RULE_DESIGN.md) để đối chiếu Hsu 2019, Nam Đầu 2026 và Mistboard, ca engine cũ hòa sau 4 lần đuổi, định nghĩa cặp quân, cảnh báo trước vi phạm, ưu tiên phân xử và ma trận test. Không mặc định quy ước tự động hóa là điều lệ nguyên văn hoặc luật quốc tế.
+
+Tại mốc R2-02, chạy lại **213/213 test PASS** và tạo checkpoint local R2-01 `d0509c3f0acd7549872a55c97daf0a23b343f850` theo allowlist 10 file. Các ghi chú “R2-01 chưa commit” phía trên mô tả lúc kết thúc R2-01; checkpoint R0–R1 `663b03b` vẫn giữ nguyên. R2-02 chỉ sửa tài liệu, không sửa engine/gameplay/test và không push/deploy. Ba quyết định về xử lỗi, ngoại lệ quân không thoát được và tương tác hòa được duyệt trong prompt R2-03A.
+
+## R2-03A — engine trường tróc, chưa nối UI mới
+
+- Thực thi house adjudication dựa trên Nam Đầu 2026: cùng A đi yên dọa ăn hợp lệ cùng B, lần 7 một lỗi/action; lỗi đầu giữ nước/chuyển lượt, reset count giữ cặp/start; lỗi thứ hai thua. ID cấp theo thứ tự lật công khai, phân biệt hai quân cùng loại và đi theo quân qua di chuyển.
+- Ngoại lệ bảo thủ chỉ khi toàn bàn mở và không có một phản hồi cơ bản nào cứu B, kể cả quân khác ăn A hoặc đổi ngòi Pháo. Dùng luật ăn chung, không soi quân úp/solver/đệ quy `applyAction`.
+- Ưu tiên lỗi 2 → hết quân → hết hành động cơ bản → lặp 3 → 60. Hoãn lặp chỉ khi đúng một bên đuổi cùng cặp suốt cửa sổ ba lần xuất hiện; hold 60 cố định người/cặp, chỉ thu hẹp, mất hết cặp bằng nước yên thì hòa ngay. Ăn/lật reset quiet/runs/hold, giữ lỗi.
+- Public có `visibleId` trên quân đã mở và `chase: {faults, runs, drawDeferred, warnings}`. Warning gắn action cụ thể, người chịu lỗi, `nextFault` và `losesGame`, dùng cùng phân tích với xử nước. Không lộ bảng lịch sử hay ID ô úp. Legacy chỉ khởi tạo lịch sử chase biết được tại trạng thái hiện có, không bịa lại quá khứ.
+- C1 chạy đủ action thật: ply 8 không hòa, ply 13 lỗi 1 giữ nước/startPly, ply 27 Đỏ thua; warning có trước hai nước lỗi. Bộ test mới đối chiếu đầy đủ ở cuối [CHASE_RULE_DESIGN.md](CHASE_RULE_DESIGN.md).
+- Không đổi UI R2-01 hoặc suite browser/gameplay. UI chưa hiển thị warning/lỗi và chưa ánh xạ reason mới `chase_technical_fouls`; R2-03B cần bổ sung lời giải thích kết quả. Không stage/commit/push/deploy; giữ checkpoint và tài liệu R2-02 chưa commit.
 
 ## Phạm vi hiện tại và các giai đoạn sau
 
-| Giai đoạn | Công việc | Trạng thái sau R2-01 |
+| Giai đoạn | Công việc | Trạng thái hiện tại (engine R2-03A / UI R2-01) |
 | --- | --- | --- |
 | Offline hai người | Kết nối engine với lật/đi/ăn, khởi tạo ván, phân màu, lượt đi và kết thúc ván | Đã triển khai bằng Unicode |
+| Trường tróc | Rà soát nguồn, xử đuổi/cảnh báo/ưu tiên hòa | Engine + unit test đã triển khai; UI cảnh báo/kết quả mới chờ R2-03B |
 | Online hai người | Backend Supabase riêng, mã phòng, đồng hồ, cầu hòa/chịu thua/kết thúc; bảo mật quân úp | Chưa triển khai |
 | Bot | Một Bot mạnh, chỉ dùng thông tin công khai và xác suất | Chưa triển khai |
 | Hoàn thiện giao diện | SVG của tác giả, âm thanh, animation sau khi gameplay ổn định | Chưa triển khai |
 
-Chỉ đề xuất bước tiếp theo: đánh giá/trải nghiệm Offline thực tế rồi mới hoàn thiện UI/SVG. Chưa bắt đầu R2-02 hoặc giai đoạn khác.
+Chỉ đề xuất bước tiếp theo: **R2-03B — nối warning/lỗi và kết quả trường tróc vào UI, test Chrome PC/Mobile**. Chưa tự triển khai R2-03B hoặc giai đoạn đồ họa/Online/Bot.
 
 ## Ràng buộc thực hiện R0
 

@@ -1,4 +1,4 @@
-// R1-02: core rules and automatic outcomes. No DOM, orientation or networking.
+// R2-03A: core rules, outcomes and public-information chase adjudication.
 // See docs/RULES.md for the state contract and the chosen Banqi variant.
 const COLUMNS = 8;
 const ROWS = 4;
@@ -68,12 +68,13 @@ export function createGame(options = {}) {
   }
   const state = { board, turn, playerColors: [null, null], captured: [],
     status: "playing", result: null, noProgressPly: 0, positionCounts: {} };
-  state.positionCounts[positionKey(getPublicState(state))] = 1;
+  state.positionCounts[positionKey(publicPosition(state))] = 1;
+  Object.assign(state, cloneChase(state));
   return state;
 }
 
-/** Fresh allowlisted data only. Never spread/serialize a private piece into this view. */
-export function getPublicState(privateState) {
+// This projection has no warnings/history and is also used by internal analysis.
+function publicPosition(privateState) {
   const snapshot = {
     board: privateState.board.map((piece) => {
       if (piece === null) return null;
@@ -88,6 +89,84 @@ export function getPublicState(privateState) {
     noProgressPly: privateState.noProgressPly ?? 0,
   };
   snapshot.repetitionCount = privateState.positionCounts?.[positionKey(snapshot)] ?? 1;
+  return snapshot;
+}
+
+function pairInfo(pair) {
+  return { attackerId: pair.attackerId, targetId: pair.targetId };
+}
+
+function samePair(a, b) {
+  return a.attackerId === b.attackerId && a.targetId === b.targetId;
+}
+
+// Legacy states start observation here. Revealed pieces get IDs in board order;
+// hidden identities and any supposed pre-import chase history are never inspected.
+function cloneChase(state) {
+  let nextId = 1;
+  const visibleIds = state.visibleIds ? [...state.visibleIds]
+    : state.board.map((p) => p === null || p.faceDown ? null : `v${nextId++}`);
+  const ply = state.ply ?? 0;
+  const positionLastPlies = Object.fromEntries(Object.entries(state.positionLastPlies ?? {})
+    .map(([key, plies]) => [key, [...plies]]));
+  positionLastPlies[positionKey(publicPosition(state))] ??= [ply];
+  return {
+    ply, visibleIds, nextVisibleId: state.nextVisibleId ?? nextId,
+    runs: (state.runs ?? [[], []]).map((runs) => runs.map((run) =>
+      ({ ...pairInfo(run), count: run.count, startPly: run.startPly }))),
+    chaseFaults: [...(state.chaseFaults ?? [0, 0])], positionLastPlies,
+    quietDrawHold: state.quietDrawHold == null ? null : {
+      player: state.quietDrawHold.player, pairs: state.quietDrawHold.pairs.map(pairInfo),
+    },
+  };
+}
+
+function locatedPair(pair, ids) {
+  return { ...pairInfo(pair), attackerAt: coordinateOf(ids.indexOf(pair.attackerId)),
+    targetAt: coordinateOf(ids.indexOf(pair.targetId)) };
+}
+
+/** Fresh allowlisted data only, including warnings derived solely from public moves. */
+export function getPublicState(privateState) {
+  const snapshot = publicPosition(privateState);
+  const chase = cloneChase(privateState);
+  snapshot.board.forEach((piece, index) => {
+    if (piece !== null && !piece.faceDown) piece.visibleId = chase.visibleIds[index];
+  });
+  const drawDeferred = [];
+  if (snapshot.status !== "finished") {
+    const repetition = repetitionChaser(chase, snapshot);
+    if (snapshot.repetitionCount >= 3 && repetition !== null) {
+      drawDeferred.push({ reason: "threefold_repetition", player: repetition.player,
+        pairs: repetition.pairs.map((pair) => locatedPair(pair, chase.visibleIds)) });
+    }
+    if (chase.quietDrawHold !== null) {
+      drawDeferred.push({ reason: "no_progress_60", player: chase.quietDrawHold.player,
+        pairs: chase.quietDrawHold.pairs.map((pair) => locatedPair(pair, chase.visibleIds)) });
+    }
+  }
+  const warnings = [];
+  const player = snapshot.turn;
+  if (snapshot.status !== "finished" && chase.runs[player].some((run) => run.count >= 6)) {
+    for (const action of getLegalActions(snapshot, player)) {
+      if (action.type !== "move" || snapshot.board[indexOf(action.to)] !== null) continue;
+      const from = indexOf(action.from), to = indexOf(action.to);
+      const board = [...snapshot.board], ids = [...chase.visibleIds];
+      board[to] = board[from]; board[from] = null;
+      ids[to] = ids[from]; ids[from] = null;
+      const runs = quietRuns(board, ids, chase.runs[player], action, chase.ply + 1);
+      const pairs = runs.filter((run) => run.count >= 7);
+      if (pairs.length) warnings.push({ action, player,
+        pairs: pairs.map((pair) => locatedPair(pair, ids)),
+        nextFault: chase.chaseFaults[player] + 1, losesGame: chase.chaseFaults[player] >= 1 });
+    }
+  }
+  snapshot.chase = {
+    faults: [...chase.chaseFaults],
+    runs: chase.runs.map((runs) => runs.map((run) =>
+      ({ ...locatedPair(run, chase.visibleIds), count: run.count }))),
+    drawDeferred, warnings,
+  };
   return snapshot;
 }
 
@@ -123,22 +202,74 @@ function canMove(board, from, to) {
 export function getLegalActions(publicState, player) {
   if (publicState.status === "finished") return [];
   if (!isPlayer(player) || player !== publicState.turn) return [];
+  return basicActions(publicState.board, publicState.playerColors[player]);
+}
+
+// Explicitly ignores turn/status only for internal one-ply response analysis.
+function basicActions(board, color) {
   const actions = [];
-  const color = publicState.playerColors[player];
   for (let from = 0; from < COLUMNS * ROWS; from += 1) {
-    const piece = publicState.board[from];
+    const piece = board[from];
     if (piece === null) continue;
     if (piece.faceDown) {
       actions.push({ type: "flip", at: coordinateOf(from) });
     } else if (color !== null && piece.color === color) {
       for (let to = 0; to < COLUMNS * ROWS; to += 1) {
-        if (canMove(publicState.board, from, to)) {
+        if (canMove(board, from, to)) {
           actions.push({ type: "move", from: coordinateOf(from), to: coordinateOf(to) });
         }
       }
     }
   }
   return actions;
+}
+
+// Called only on a fully revealed public board. Saving B includes another piece
+// capturing A or changing a cannon screen. No recursive actions/outcomes/search.
+function canSaveTarget(board, attacker, target, replies) {
+  return replies.some((reply) => {
+    const from = indexOf(reply.from), to = indexOf(reply.to);
+    if (to === attacker) return true;
+    const after = [...board];
+    after[to] = after[from]; after[from] = null;
+    return !canMove(after, attacker, from === target ? to : target);
+  });
+}
+
+// Shared by forecast and adjudication; board/IDs already reflect the quiet move.
+function quietRuns(board, ids, previous, action, ply) {
+  const attacker = indexOf(action.to);
+  const fullyRevealed = !board.some((piece) => piece !== null && piece.faceDown);
+  const enemy = board[attacker].color === "red" ? "black" : "red";
+  let replies;
+  const runs = [];
+  for (let target = 0; target < board.length; target += 1) {
+    const piece = board[target];
+    if (piece === null || piece.faceDown || !canMove(board, attacker, target)) continue;
+    if (fullyRevealed) {
+      replies ??= basicActions(board, enemy);
+      if (!canSaveTarget(board, attacker, target, replies)) continue;
+    }
+    const pair = { attackerId: ids[attacker], targetId: ids[target] };
+    const old = previous.find((run) => samePair(run, pair));
+    runs.push({ ...pair, count: (old?.count ?? 0) + 1, startPly: old?.startPly ?? ply });
+  }
+  return runs;
+}
+
+// Attribution spans (first of last three occurrences, current ply]. The fleeing
+// move carries the other side's run; a first fault preserves its startPly.
+function repetitionChaser(chase, snapshot) {
+  const plies = chase.positionLastPlies[positionKey(snapshot)];
+  if (!plies || plies.length < 3) return null;
+  const first = plies[0], last = plies[2];
+  const responsible = [];
+  for (const player of [0, 1]) {
+    const firstOwnPly = first + (snapshot.turn === player ? 1 : 2);
+    const pairs = chase.runs[player].filter((run) => run.startPly <= firstOwnPly && firstOwnPly <= last);
+    if (pairs.length) responsible.push({ player, pairs });
+  }
+  return responsible.length === 1 ? responsible[0] : null;
 }
 
 function isAction(action) {
@@ -152,7 +283,7 @@ function isAction(action) {
 function clonePrivateState(state) {
   const positionCounts = { ...state.positionCounts };
   // R1-01 states/hand-built fixtures start their known history at this position.
-  const currentKey = positionKey(getPublicState(state));
+  const currentKey = positionKey(publicPosition(state));
   positionCounts[currentKey] ??= 1;
   return {
     board: state.board.map((piece) => piece === null ? null : { ...pieceInfo(piece), faceDown: piece.faceDown }),
@@ -163,24 +294,53 @@ function clonePrivateState(state) {
     result: resultInfo(state.result),
     noProgressPly: state.noProgressPly ?? 0,
     positionCounts,
+    ...cloneChase(state),
   };
 }
 
 function updateOutcome(state, player, event) {
-  state.noProgressPly = event.type === "flip" || event.captured !== null ? 0 : state.noProgressPly + 1;
-  const snapshot = getPublicState(state);
+  state.ply += 1;
+  const progress = event.type === "flip" || event.captured !== null;
+  state.noProgressPly = progress ? 0 : state.noProgressPly + 1;
+  const snapshot = publicPosition(state);
+  let releasedHold = false;
+  if (progress) {
+    state.runs = [[], []];
+    state.quietDrawHold = null;
+  } else {
+    state.runs[player] = quietRuns(snapshot.board, state.visibleIds, state.runs[player], event, state.ply);
+    if (state.runs[player].some((run) => run.count >= 7)) {
+      state.chaseFaults[player] += 1;
+      state.runs[player].forEach((run) => { run.count = 0; });
+    }
+    if (state.quietDrawHold?.player === player) {
+      state.quietDrawHold.pairs = state.quietDrawHold.pairs.filter((pair) =>
+        state.runs[player].some((run) => samePair(pair, run)));
+      releasedHold = state.quietDrawHold.pairs.length === 0;
+      if (releasedHold) state.quietDrawHold = null;
+    }
+  }
   const key = positionKey(snapshot);
   state.positionCounts[key] = (state.positionCounts[key] ?? 0) + 1;
+  state.positionLastPlies[key] = [...(state.positionLastPlies[key] ?? []), state.ply].slice(-3);
 
   const opponentColor = state.playerColors[state.turn];
-  if (!state.board.some((piece) => piece !== null && piece.color === opponentColor)) {
+  if (state.chaseFaults[player] >= 2) {
+    state.result = { outcome: "win", winner: 1 - player, reason: "chase_technical_fouls" };
+  } else if (!state.board.some((piece) => piece !== null && piece.color === opponentColor)) {
     state.result = { outcome: "win", winner: player, reason: "all_pieces_captured" };
   } else if (getLegalActions(snapshot, state.turn).length === 0) {
     state.result = { outcome: "win", winner: player, reason: "no_legal_actions" };
-  } else if (state.positionCounts[key] >= 3) {
+  } else if (state.positionCounts[key] >= 3 && repetitionChaser(state, snapshot) === null) {
     state.result = { outcome: "draw", winner: null, reason: "threefold_repetition" };
   } else if (state.noProgressPly >= 60) {
-    state.result = { outcome: "draw", winner: null, reason: "no_progress_60" };
+    const chasers = [0, 1].filter((p) => state.runs[p].length > 0);
+    if (releasedHold || (state.quietDrawHold === null && chasers.length !== 1)) {
+      state.result = { outcome: "draw", winner: null, reason: "no_progress_60" };
+    } else if (state.quietDrawHold === null) {
+      const responsible = chasers[0];
+      state.quietDrawHold = { player: responsible, pairs: state.runs[responsible].map(pairInfo) };
+    }
   }
   if (state.result !== null) state.status = "finished";
 }
@@ -192,7 +352,7 @@ export function applyAction(privateState, player, action) {
   if (player !== privateState.turn) return { ok: false, error: "NOT_YOUR_TURN" };
   if (!isAction(action)) return { ok: false, error: "INVALID_ACTION" };
 
-  const legal = getLegalActions(getPublicState(privateState), player).some((candidate) =>
+  const legal = getLegalActions(publicPosition(privateState), player).some((candidate) =>
     candidate.type === action.type && (action.type === "flip"
       ? candidate.at === action.at
       : candidate.from === action.from && candidate.to === action.to));
@@ -203,6 +363,7 @@ export function applyAction(privateState, player, action) {
   if (action.type === "flip") {
     const piece = state.board[indexOf(action.at)];
     piece.faceDown = false;
+    state.visibleIds[indexOf(action.at)] = `v${state.nextVisibleId++}`;
     if (state.playerColors[player] === null) {
       state.playerColors[player] = piece.color;
       state.playerColors[1 - player] = piece.color === "red" ? "black" : "red";
@@ -214,6 +375,8 @@ export function applyAction(privateState, player, action) {
     if (captured !== null) state.captured.push(pieceInfo(captured));
     state.board[to] = piece;
     state.board[from] = null;
+    state.visibleIds[to] = state.visibleIds[from];
+    state.visibleIds[from] = null;
     event = { type: "move", player, from: action.from, to: action.to,
       piece: pieceInfo(piece), captured: captured === null ? null : pieceInfo(captured) };
   }
