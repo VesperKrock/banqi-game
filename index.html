@@ -28,6 +28,7 @@
           <button type="button" id="new-game">Ván mới</button>
         </div>
         <p id="player-colors">Người 1: chưa phân màu · Người 2: chưa phân màu</p>
+        <div id="chase-status" class="chase-status" role="status" aria-live="polite" aria-atomic="true"></div>
       </header>
 
       <section aria-labelledby="board-heading">
@@ -45,7 +46,7 @@
           <div id="axis-bottom" class="axis axis-bottom" aria-hidden="true"></div>
         </div>
         <p id="action-feedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true">Mở trang qua Live Server / HTTP để chơi.</p>
-        <p class="board-help">Ô có dấu ·: đi được; viền nét đứt: ăn được. Bấm lại quân để bỏ chọn. Tab rồi Enter / Space để thao tác. Tọa độ a1–h4 giữ nguyên khi đổi hướng.</p>
+        <p class="board-help">Ô có dấu ·: đi được; viền nét đứt: ăn được; dấu !: nước sẽ phạm lỗi trường tróc. Bấm lại quân để bỏ chọn. Tab rồi Enter / Space để thao tác. Tọa độ a1–h4 giữ nguyên khi đổi hướng.</p>
         <noscript><p>Hãy bật JavaScript và mở trang qua HTTP để chơi Offline.</p></noscript>
       </section>
     </main>

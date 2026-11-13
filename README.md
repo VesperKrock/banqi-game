@@ -2,7 +2,7 @@
 
 Web cờ tướng lật (Banqi / Chinese Dark Chess), ưu tiên đơn giản, hiệu quả và công bằng.
 
-**R2-01: Offline · Hai người cùng máy.** Đã nối engine R1 vào UI: tạo ván, lật/phân màu, chọn/đi/ăn, thắng/thua và hòa tự động. Giữ tọa độ a1–h4, Ngang/Dọc và Sáng/Tối có lưu lựa chọn. Chưa có Online, Bot hoặc SVG.
+**R2-03B: Offline · Hai người cùng máy, có cảnh báo trường tróc.** UI dùng engine R2-03A để tạo ván, lật/phân màu, đi/ăn, xử thắng/hòa và lỗi trường tróc. Cảnh báo hiện trước nước vi phạm; giữ tọa độ a1–h4, Ngang/Dọc và Sáng/Tối có lưu lựa chọn. Chưa có Online, Bot hoặc SVG.
 
 ## Mở trò chơi qua HTTP
 
@@ -16,10 +16,18 @@ R2-01 import `js/engine.mjs` qua ES module. **Không mở bằng cách double-cl
 - Click/tap quân úp để lật đúng một quân và kết thúc lượt; có thể lật ra quân của đối phương.
 - Chọn quân đã mở của người đến lượt. Ô có dấu **·** là đích đi; viền nét đứt là đích ăn. Bấm đích hợp lệ để thực hiện. Bấm lại quân để bỏ chọn, bấm quân mình khác để đổi chọn; vẫn có thể lật quân úp khi đang chọn.
 - Nước không hợp lệ chỉ hiện một phản hồi ngắn, không đổi lượt/bàn. Các luật Pháo, Tốt/Tướng và thứ bậc do engine quyết định; xem `docs/RULES.md`.
-- Engine tự kết thúc khi đối phương hết quân/hết hành động, lặp thế cờ lần thứ ba hoặc 60 nửa-lượt không lật/ăn. UI hiện người thắng/hòa cùng lý do và khóa thao tác trên bàn.
+- Engine xét hết quân/hết hành động, lặp ba lần, 60 nửa-lượt không lật/ăn và lỗi trường tróc. Khi hòa bị hoãn do truy đuổi, UI nói rõ “Chưa hòa”; khi kết thúc, hiện thắng/hòa cùng lý do và khóa bàn.
 - **Ván mới** hỏi xác nhận khi bỏ ván đang chơi đã có nước. Hủy giữ ván; đồng ý xáo lại, bỏ phân màu/lựa chọn. Ván đã kết thúc có thể bắt đầu lại ngay. Hướng và theme vẫn giữ.
 - Dùng Tab tới ô, Enter hoặc Space để lật/chọn/đi/ăn. Quân úp có nhãn `Quân úp tại a1`, không đọc danh tính thật.
 - Ván chỉ nằm trong bộ nhớ của trang; tải lại/đóng trang sẽ mất ván. Chưa có lưu ván, undo, replay, đồng hồ hoặc chịu thua/xin hòa.
+
+## Cảnh báo trường tróc
+
+- Khu vực riêng cạnh lượt nhắc khi đuổi cùng quân **5/6** hoặc **6/6**. Khi tới lượt, các nước sẽ phạm lỗi được ghi rõ, ví dụ **b2–c2: lỗi 1/2 cho Người 1 (Đỏ)**.
+- Chọn quân: đích có rủi ro mang dấu **!**, viền cảnh báo và mô tả truy cập về nước đi/hậu quả. Dấu hiện trước click/tap/Enter/Space; không cần hover. Đổi/bỏ chọn xóa dấu của quân cũ; nước được cảnh báo vẫn có thể thực hiện.
+- Lỗi đầu: giữ nước, chuyển lượt, thông báo **lỗi trường tróc 1/2 — ván tiếp tục**. Nếu nước cụ thể tiếp theo sẽ phạm lỗi thứ hai, cảnh báo ghi rõ **lỗi 2/2 và xử thua**. Kết thúc nêu cả người/màu thắng và thua, với nguyên nhân hai lỗi trường tróc.
+- Hoãn hòa lặp nêu bên liên tục đuổi; hoãn 60 nêu số nửa-lượt thật, bên/cặp quân bị ràng buộc. Đây là thông tin từ engine; UI không tự đếm hoặc xử luật. Quy ước 7/2 và ngoại lệ là house adjudication của game, xem [RULES.md](docs/RULES.md).
+- Thông báo chọn quân/nước đi không ghi đè cảnh báo. Vùng `aria-live="polite"` chỉ đổi khi nội dung đổi; theme/hướng không đọc lại cùng cảnh báo. Invalid không tạo lỗi; Ván mới xóa mọi thông tin của ván cũ.
 
 ## Hướng bàn và theme
 
@@ -39,7 +47,7 @@ R2-01 import `js/engine.mjs` qua ES module. **Không mở bằng cách double-cl
 
 Quân tròn bằng CSS, Đỏ viền kép, Đen viền đơn, cùng ký tự khác nhau và bảng màu tương phản cho cả hai theme. Quân úp dùng `?` trung tính. Một phần tử `.piece` trong mỗi ô dành cho việc thay hình sau này ở `assets/pieces/red/`, `assets/pieces/black/`, `assets/pieces/back.svg`; R2-01 chưa tạo/tải SVG.
 
-`js/offline.mjs` sở hữu private state trong phạm vi module, không gắn lên `window`, DOM hoặc log. Render và phản hồi chỉ dùng `getPublicState`/event công khai; chọn đích bằng `getLegalActions`, thực thi bằng `applyAction`. Không sao chép luật vào UI, không đổi engine R1. **Offline không ngăn người dùng cố tình soi bộ nhớ bằng DevTools**; Online tương lai phải giữ private state ở backend.
+`js/offline.mjs` sở hữu private state trong phạm vi module, không gắn lên `window`, DOM hoặc log. Render và phản hồi chỉ dùng `getPublicState`/event công khai, gồm `chase.faults/runs/drawDeferred/warnings`; chọn đích bằng `getLegalActions`, thực thi bằng `applyAction`. Không sao chép luật vào UI; R2-03B giữ nguyên engine/schema/unit test R2-03A. **Offline không ngăn người dùng cố tình soi bộ nhớ bằng DevTools**; Online tương lai phải giữ private state ở backend.
 
 ## Cấu trúc
 
@@ -48,9 +56,10 @@ index.html               Trang Offline tiếng Việt, mở qua HTTP
 style.css                Giao diện PC và điện thoại
 js/app.js                32 nút ô ổn định, tọa độ/ánh xạ và theme trước khi vẽ trang
 js/offline.mjs           Controller Offline, giữ private state và render public
-js/engine.mjs            Engine thuần: lật/đi/ăn, thắng/thua/hòa
+js/engine.mjs            Engine thuần: lật/đi/ăn, thắng/thua/hòa và trường tróc
 docs/SPEC.md             Quyết định sản phẩm, phạm vi và việc chưa làm
-docs/RULES.md            Hợp đồng API và luật R1
+docs/RULES.md            Hợp đồng API và luật đến R2-03A
+docs/CHASE_RULE_DESIGN.md Nguồn/house rule và kiểm chứng engine R2-03A
 assets/pieces/red/       Chỗ cho SVG quân đỏ về sau
 assets/pieces/black/     Chỗ cho SVG quân đen về sau
 prompts/                 Prompt triển khai được giữ nguyên
@@ -59,6 +68,7 @@ tests/browser.test.cjs   Kiểm thử UI/theme bằng Chrome có sẵn
 tests/gameplay.test.cjs  Gameplay, bảo mật DOM, Unicode và responsive
 tests/engine.test.cjs    Luật lật/đi/ăn và ranh giới public/private
 tests/endgame.test.cjs   Thắng/thua, hòa và khóa ván
+tests/chase.test.cjs     Trường tróc, tương tác hòa, công bằng thông tin
 tests/helpers/chrome.cjs Kết nối Chrome để chạy test, không có dependency
 tests/helpers/http.cjs   HTTP server chỉ dùng cho test, route allowlist/fixture
 .gitignore              Bỏ qua môi trường, mật khẩu và dữ liệu local
@@ -69,28 +79,30 @@ tests/helpers/http.cjs   HTTP server chỉ dùng cho test, route allowlist/fixtu
 Kiểm thử luật và tọa độ bằng Node tích hợp:
 
 ```text
-node --test tests/engine.test.cjs tests/endgame.test.cjs tests/mapping.test.cjs
+node --test tests/engine.test.cjs tests/endgame.test.cjs tests/chase.test.cjs tests/mapping.test.cjs
 ```
 
-148 test: 102 luật/công bằng R1-01, 36 kết thúc ván R1-02, 10 ánh xạ R0. Engine và các test này giữ nguyên trong R2-01.
+200 unit test: 102 luật/công bằng R1-01, 36 kết thúc ván R1-02, 52 trường tróc R2-03A, 10 ánh xạ R0. Engine và các test này giữ nguyên trong R2-03B.
 
 Nếu có Node 22+ và Chrome cài sẵn, chạy toàn bộ test:
 
 ```text
-node --test --test-reporter=spec tests/engine.test.cjs tests/endgame.test.cjs tests/mapping.test.cjs tests/browser.test.cjs tests/gameplay.test.cjs
+node --test --test-reporter=spec tests/engine.test.cjs tests/endgame.test.cjs tests/chase.test.cjs tests/mapping.test.cjs tests/browser.test.cjs tests/gameplay.test.cjs
 node --check js/app.js
 node --check js/offline.mjs
 node --check js/engine.mjs
+node --check tests/gameplay.test.cjs
+node --check tests/helpers/chrome.cjs
 git diff --check
 ```
 
 Test trình duyệt tự mở HTTP server trên `127.0.0.1` với cổng trống và Chrome headless với profile riêng, rồi đóng server/tiến trình do test tạo. Không cần khởi động server thủ công hoặc cài package. Nếu Chrome ở vị trí khác, đặt biến môi trường `CHROME_PATH` tới executable. Thiếu Chrome sẽ báo lỗi, không tự cài đặt hoặc tự tuyên bố PASS.
 
-Tổng **213 test** tính cả hai test cha browser: 175 hồi quy + 38 gameplay. Không xóa/vô hiệu test nền. Test R0 được chuyển từ `file://` sang HTTP, cập nhật nhãn quân úp và semantic button. Trong test 100 vòng đổi hướng/theme, bỏ kỳ vọng cũ “bấm ô không làm gì”; hành vi click-lật một quân được kiểm tra trong suite gameplay, cùng các kiểm tra kích thước/tròn mới.
+R2-03B giữ toàn bộ **265 test nền** (213 R2-01 + 52 R2-03A), thêm **8 ca UI** vào suite gameplay: tổng **273 test** tính cả hai test cha browser. Không xóa/skip/nới assertion nền hoặc đổi engine/unit test. Những điều chỉnh từ placeholder sang gameplay ở R2-01 vẫn được giữ.
 
-37 kịch bản gameplay (38 tính test cha) kiểm tra phân màu cả hai người/hai màu, chọn/bỏ/đổi chọn, đi/ăn, invalid không spam, Pháo và Tốt/Tướng, cả bốn kết thúc thật, confirm thật, Tab/Enter/Space, chuột/touch giả lập và một ván đủ 32 quân đến thắng sau 83 hành động. Fixture chỉ thay khởi tạo ở HTTP server của test; mọi hành động/kết quả vẫn qua engine thật, không thêm backdoor vào production.
+45 kịch bản gameplay (46 tính test cha) giữ các kiểm tra phân màu, đi/ăn, Pháo/Tốt/Tướng, bốn kết thúc cũ, confirm, input và ván đủ 32 quân kết thúc sau 83 hành động. Ca mới chạy C1 qua UI đủ 27 ply: ply 8 chưa hòa, chuột thực hiện lỗi đầu tại 13, touch thực hiện lỗi thứ hai tại 27; Tab/Enter/Space đọc đúng đích trước khi đi. Có kiểm tra nhiều warning/đổi chọn, invalid, nước không bị cảnh báo, hoãn 60, ván mới, DOM/label/event/log công khai và bố cục khi đang warning lỗi thứ hai. Fixture chỉ thay lần khởi tạo đầu ở HTTP server test; mọi hành động/kết quả qua engine thật, không có backdoor production.
 
-Cả suite hồi quy và gameplay đều kiểm tra **320×568, 390×844, 768×1024, 1280×800 × hai theme × hai hướng**, không overflow/lỗi console/network. Gameplay đo độ tròn, kích thước mặt quân/chữ, hai kiểu viền, tương phản và đích đi/ăn. Ảnh, `report.json` và profile nằm trong `.local-qa/r2-01/regression/` và `.local-qa/r2-01/gameplay/`, được Git bỏ qua. Không xóa bộ ảnh QA cũ.
+Cả suite hồi quy và gameplay đều kiểm tra **320×568, 390×844, 768×1024, 1280×800 × hai theme × hai hướng**, không overflow/lỗi console/network. Ca warning cũng chạy đủ 16 tổ hợp, kiểm tra chữ/dấu ! không bị che, tương phản ≥4.5, focus, quân tròn và tọa độ. Ảnh, `report.json` và profile nằm trong thư mục `run-*` mới cho mỗi lần chạy dưới `.local-qa/r2-01/regression/` hoặc `.local-qa/r2-01/gameplay/`, được Git bỏ qua. Helper chỉ đổi cách đặt thư mục kết quả để giữ bằng chứng QA cũ; không xóa/ghi đè thư mục trước.
 
 Kiểm tra thủ công trong trình duyệt:
 
@@ -99,9 +111,10 @@ Kiểm tra thủ công trong trình duyệt:
 3. Đổi Ngang/Dọc, Sáng/Tối giữa ván: quân/lượt/lựa chọn không đổi, ký tự thẳng, trục không chồng bàn. Kiểm tra cả bốn kích thước trên; bàn dọc có thể cần cuộn trang.
 4. Ván mới: hủy giữ ván, xác nhận reset. Chọn theme rồi tải lại: theme giữ, ván bắt đầu lại.
 5. Chơi đến kết thúc: đúng thông báo thắng/hòa và lý do, bàn không nhận thêm nước.
+6. Khi có nhắc 5/6–6/6, chọn quân để đọc nước cảnh báo và dấu ! trước khi đi. Lỗi đầu vẫn chơi; lỗi thứ hai hiển thị người/màu thắng–thua. Thử đổi hướng/theme, bỏ chọn và Ván mới trong các trạng thái này.
 
 Đã kiểm tra tự động Chrome và xem ảnh PC/mobile giả lập. Chưa thử điện thoại thật, Safari/Firefox hoặc trình đọc màn hình thật; cây accessibility được kiểm tra qua Chrome. Unicode phụ thuộc font có trên thiết bị.
 
 ## Phạm vi tiếp theo
 
-Đánh giá/trải nghiệm Offline thực tế rồi mới hoàn thiện UI/SVG. Chưa bắt đầu R2-02, Online, Bot, backend/Supabase, âm thanh hoặc animation. Checkpoint R0–R1: `663b03b`; phần R2-01 để trên working tree, không commit thêm/push/deploy. Không đưa secret, prompt bị ignore hoặc ảnh QA vào Git.
+**Chủ dự án chơi thử cảnh báo Offline và nghiệm thu, sau đó mới giao hoàn thiện SVG/UX.** Chưa làm Online, Bot, backend/Supabase, âm thanh hoặc animation. Checkpoint R0–R1: `663b03b`; R2-01: `d0509c3`; R2-02/R2-03A: `8edc566` (tạo sau baseline 265/265 PASS). Phần R2-03B giữ trên working tree, không commit/push/deploy. Không đưa secret, prompt bị ignore hoặc ảnh QA vào Git. Trạng thái UI hiện tại theo [SPEC.md](docs/SPEC.md); ghi chú UI chưa nối trong tài liệu kiểm toán R2-03A mô tả mốc trước checkpoint này.

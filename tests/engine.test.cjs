@@ -69,7 +69,7 @@ test("Khởi tạo đủ 32 quân, 16 mỗi màu, đúng cơ cấu, tất cả �
   }
   assert.ok(state.board.every((p) => p.faceDown === true));
   assert.equal(new Set(state.board).size, 32, "No shared piece objects");
-  assert.deepEqual(Object.keys(state).sort(), ["board", "captured", "chaseFaults", "nextVisibleId", "noProgressPly", "playerColors", "ply", "positionCounts", "positionLastPlies", "quietDrawHold", "result", "runs", "status", "turn", "visibleIds"]);
+  assert.deepEqual(Object.keys(state).sort(), ["board", "captured", "chaseFaults", "nextVisibleId", "noProgressPly", "playerColors", "ply", "positionCounts", "positionLastPlies", "quietDrawHold", "repetitionChase", "repetitionEpochStart", "result", "runs", "status", "turn", "visibleIds"]);
 });
 
 test("Nguồn random tái lập, ván độc lập, không lưu seed hay random trong state", () => {
@@ -346,7 +346,7 @@ test("Public ban đầu chỉ có 32 occupied/faceDown, không màu/loại/ID/se
   const publicState = getPublicState(state);
   assert.deepEqual(publicState, { board: Array.from({ length: 32 }, () => ({ occupied: true, faceDown: true })),
     turn: 0, playerColors: [null, null], captured: [], status: "playing", result: null,
-    noProgressPly: 0, repetitionCount: 1,
+    noProgressPly: 0, repetitionCount: 1, drawRepetitionCount: 1,
     chase: { faults: [0, 0], runs: [[], []], drawDeferred: [], warnings: [] } });
   assert.doesNotMatch(JSON.stringify(publicState), /PRIVATE_ONLY|"red"|"black"|"seed"|"metadata"|"general"|"pawn"/);
 });

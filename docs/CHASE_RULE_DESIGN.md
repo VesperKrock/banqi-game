@@ -1,6 +1,6 @@
-# R2-02 / R2-03A — Kiểm toán luật và thiết kế trường tróc
+# R2-02 / R2-03A / R2-03C — Kiểm toán luật và thiết kế trường tróc
 
-**Trạng thái: BA QUYẾT ĐỊNH ĐÃ DUYỆT theo R2-03A; engine và unit test đã triển khai. UI cảnh báo/lỗi/kết quả mới dành cho R2-03B, chưa làm.**
+**Trạng thái: ba quyết định R2-03A giữ nguyên; UI R2-03B đã triển khai. R2-03C mở rộng riêng cách đếm lặp sau khi đoạn đuổi từng hoãn hòa kết thúc; xem C2.1 và bằng chứng cuối tài liệu.**
 
 Rà soát ngày 10/11/2026, trên checkpoint R2-01 `d0509c3f0acd7549872a55c97daf0a23b343f850`. R0–R1 ở `663b03b`. Hợp đồng runtime cập nhật trong [RULES.md](RULES.md). **Nguồn** là chứng cứ điều lệ; **house adjudication** B–C là quy ước game đã được chủ dự án duyệt ở prompt R2-03A. Mục A3, bảng C1 và bằng chứng R2-02 giữ bối cảnh trước triển khai; mục cuối ghi kết quả mới. D2 và phần UI trong E vẫn là thiết kế cho R2-03B.
 
@@ -121,15 +121,26 @@ Fixture hợp lệ về dữ liệu: Người 1/Đỏ có Tướng b2; Người 
 
 ### C2. Trách nhiệm khi có lặp ba lần
 
-Giữ nguyên khóa công khai và cách đếm không bắt buộc liên tiếp. **Không thêm ID, count lỗi hoặc chase counter vào khóa** để né phát hiện lặp; không đặt `noProgressPly=0` chỉ vì có đuổi.
+Giữ nguyên khóa công khai và cách đếm không bắt buộc liên tiếp. **Không thêm ID, count lỗi hoặc chase counter vào khóa** để né phát hiện lặp; không đặt `noProgressPly=0` chỉ vì có đuổi. R2-03C bổ sung mốc đủ điều kiện ở C2.1; tần suất lịch sử vẫn giữ nguyên.
 
 Tối thiểu cần thêm `ply` (tăng mỗi hành động thành công) và `positionLastPlies[key]` (ba chỉ số xuất hiện gần nhất), bên cạnh tần suất đang có. Vị trí khởi tạo ghi ply 0. Kết hợp với `startPly` trong runs, không cần lưu replay hoặc toàn bộ thứ tự nước đi:
 
-1. Khi thế hiện tại đã xuất hiện ít nhất ba lần, lấy ba mốc gần nhất `i < j < k`. Khảo sát cửa sổ hành động **(i, k]**, bỏ qua nước trước i.
+1. Khi thế hiện tại đã xuất hiện ít nhất ba lần **trong giai đoạn đủ điều kiện C2.1**, lấy ba mốc gần nhất `i < j < k`. Khảo sát cửa sổ hành động **(i, k]**, bỏ qua nước trước i.
 2. p là bên **đuổi liên tục trên vòng lặp** nếu tồn tại một run cùng A/B, còn hiện hành, bao phủ mọi lượt của p trong cửa sổ. Vì run chỉ tồn tại khi p tiếp tục cặp trên mỗi lượt riêng, kiểm tra `startPly <= firstOwnPly` là đủ. `firstOwnPly = i+1` nếu p đến lượt ở thế i, ngược lại `i+2`; phải thực sự có lượt đó trong cửa sổ. Cùng khóa nên lượt ở i giống lượt ở k.
 3. Đúng một bên thỏa: **chưa cho hòa do lặp**. Chỉ tiếp tục ván và cảnh báo; không ghi lỗi sớm ở lần lặp 3. Bộ đếm 7/2 vẫn quyết định lỗi. Áp dụng kể cả khi người vừa đi là bên chạy.
 4. Không bên nào thỏa: hòa lặp như R1. Hai bên đều thỏa: cho hòa lặp sau khi xét lỗi thứ hai; không tự chọn người vừa đi làm thủ phạm. Đây là house adjudication đã duyệt, không phải điều lệ nguyên văn đã xác nhận.
-5. Lỗi đầu reset count nhưng **không reset startPly**; do đó vẫn hoãn hòa nếu tiếp tục cùng đoạn đuổi. Nếu p thật sự bỏ đuổi/đổi toàn bộ cặp, run cũ kết thúc; một lần lặp sau đó được xét lại trên cửa sổ mới. Không phát một kết quả hòa “tồn kho” ngay khi họ đi tới một thế chưa lặp.
+5. Lỗi đầu reset count nhưng **không reset startPly**; do đó vẫn hoãn hòa nếu tiếp tục cùng đoạn đuổi. Nếu p thật sự bỏ đuổi/đổi toàn bộ cặp, run cũ kết thúc. R2-03A vẫn dùng tần suất cả ván ở lần lặp sau; R2-03C thay riêng điểm đó bằng giai đoạn đủ điều kiện mới ở C2.1. Không phát một kết quả hòa “tồn kho” ngay khi họ đi tới một thế chưa lặp.
+
+### C2.1. R2-03C — giai đoạn xét hòa mới sau một đoạn từng hoãn lặp
+
+- Khi C2 thực sự hoãn hòa trong ván còn chơi, lưu `repetitionChase = {player, pairs}` với các cặp liên tục làm căn cứ. Đây là mốc ghi nhận một đoạn đã hoãn lặp, **không phải cứ có một đe dọa thì xóa lịch sử hòa**.
+- Qua mỗi action, chỉ giữ giao các cặp được lưu với runs còn liên tục của người đó. Không thêm cặp mới. Nước chạy của đối phương không tự ngắt run; lỗi đầu reset count nhưng giữ cặp nên không mở giai đoạn. Mất một trong nhiều cặp cũng chưa mở khi còn cặp căn cứ khác.
+- Khi hết tất cả cặp căn cứ, đặt `repetitionEpochStart = ply` sau nước ấy, bỏ pending. Vị trí sau nước ngắt bắt đầu giai đoạn mới. Không dùng lần xuất hiện trước mốc này để xét hòa về sau; giữ nguyên `positionCounts` và `positionLastPlies` phục vụ tần suất/ba mốc kiểm toán như trước. Không thêm replay hoặc log toàn bộ nước đi.
+- Public `repetitionCount` vẫn là tần suất thật cả ván; **`drawRepetitionCount`** mới là số lần đủ điều kiện, chặn trên ở 3. Khi mốc chưa đổi, dùng tần suất cũ để tương thích R1; khi đã đổi, đếm mốc `>= repetitionEpochStart` trong last-three. Ba mốc là đủ chứng minh có/không đủ ba lần, không cần bảng tần suất giai đoạn thứ hai. `drawDeferred` chỉ báo hoãn khi đủ ba lần mới và đúng một bên liên tục đuổi.
+- Không reset quiet ply, lỗi hoặc `quietDrawHold`. Ăn/lật vẫn reset quiet/runs/hold theo luật tiến triển hiện có, đồng thời chấm dứt pending nếu có. Nếu đang hold 60 và bỏ cặp bằng nước yên, vẫn hòa ngay, không lập hold mới nhờ đổi giai đoạn lặp.
+- Mục tiêu thay đổi là ngăn việc lấy lần lặp của đoạn đã hoãn để hòa ngay sau khi ngắt rồi đuổi lại. Một đe dọa rời rạc chưa từng hoãn, vòng nước chờ hoặc hai bên cùng đuổi vẫn hòa ba lần như trước. Việc này không biến mọi ngắt run thành lỗi hoặc cấm hòa vĩnh viễn.
+
+**Giới hạn kéo dài bằng nước yên:** trước 60, mỗi action yên vẫn tăng counter. Tại 60, nếu không có hoặc cả hai bên có run thì hòa; đúng một bên thì giữ tập cặp cố định. Nếu người chịu hold làm mất mọi cặp, hòa ngay; nếu còn một cặp sống suốt đoạn, mỗi lượt riêng tiếp tục tăng count và tối đa 14 lượt riêng sẽ dẫn đến hai lỗi (nhanh hơn nếu đã có lỗi/count). Đổi epoch không đụng cơ chế này, nên không thể có chuỗi action yên hợp lệ vô hạn bằng đổi quân/mục tiêu/ngắt–đuổi. Ăn/lật là tiến triển thật và số lần trong ván hữu hạn.
 
 Theo dõi nhiều cặp bằng mọi runs bao phủ cửa sổ, không bằng “có ít nhất một nước đuổi trong lịch sử”. Đổi qua lại các mục tiêu hoặc các quân đuổi khác nhau không phải một cặp liên tục, nên không thể khóa hòa mãi bằng các đe dọa rời rạc. Ngược lại, nếu một cặp vẫn liên tục dù đồng thời có thêm mục tiêu, vẫn phải chịu trách nhiệm.
 
@@ -175,7 +186,7 @@ Giữ bốn hàm export và dạng action/event hiện có; schema public mở r
 | `visibleIds`, bộ cấp ID sau lật | `visibleId` chỉ trên quân đã mở; ô úp vẫn đúng allowlist cũ. |
 | `runs[2]` gồm cặp, count, startPly | `chase.runs[2]` gồm ID cặp, tọa độ hiện tại, count; chỉ cặp các quân đã mở. Không cần công bố startPly. |
 | `chaseFaults[2]` | `chase.faults: [0..2, 0..2]`; luôn giữ sau khi chuỗi ngắt. |
-| `ply`, `positionLastPlies`, `positionCounts` | Không công bố các bảng lịch sử. `repetitionCount` giữ nghĩa số lần xuất hiện thật, có thể >=3 trong lúc hoãn. |
+| `ply`, `positionLastPlies`, `positionCounts`, `repetitionEpochStart`, `repetitionChase` | Không công bố bảng/mốc/pending nội bộ. `repetitionCount` giữ tần suất thật; R2-03C thêm `drawRepetitionCount` 0–3 cho giai đoạn xét hòa hiện tại. |
 | `quietDrawHold` và kết quả xét C2 | `chase.drawDeferred` là mảng 0–2 mục `{reason, player, pairs}` theo thứ tự lặp rồi 60; mỗi pair có ID/tọa độ hiện tại. Không biến thành kết quả hòa khi vẫn playing. |
 | Phân tích các move cơ bản trên snapshot + metadata công khai | `chase.warnings` cho người đến lượt: `{action, player, pairs, nextFault, losesGame}` cho nước sẽ phạm lỗi; tọa độ pair là sau action giả định. Count 5/6 đọc từ runs để chuẩn bị UI gần mốc. |
 | Kết quả sau lỗi 2 | `result = {outcome:'win', winner:1-p, reason:'chase_technical_fouls'}`. |
@@ -299,3 +310,74 @@ git diff --check
 Chrome hồi quy giữ các tổ hợp 320×568, 390×844, 768×1024, 1280×800 × Sáng/Tối × Ngang/Dọc; ván UI đủ 32 quân vẫn kết thúc sau 83 hành động với `all_pieces_captured`. R2-03A không kiểm chứng hiển thị UI trường tróc mới: controller chưa có warning/lỗi và chưa ánh xạ reason mới (có thể hiện `undefined` ở lời giải thích kết quả). Bốn export, action/event cũ giữ nguyên; getter/hoán đổi quân úp và kiểm tra DOM công khai đều PASS. Offline vẫn không chống soi bộ nhớ DevTools.
 
 Git: `main` ahead `origin/main` 2 commit, HEAD giữ `d0509c3`; không stage/commit/push/deploy, không đọc secret. Bảy file trong phạm vi engine/unit test/tài liệu được giữ trên working tree; hai tài liệu R2-02 có sẵn được cập nhật tiếp, không reset/undo. Không phát hiện phản ví dụ C2/C3 trong các ca đã kiểm chứng. Không còn blocker trong phạm vi R2-03A. **Bước tiếp theo duy nhất được đề xuất là R2-03B — nối warning/lỗi/kết quả vào UI và kiểm tra Chrome PC/Mobile**, chưa thực hiện.
+
+## Bằng chứng R2-03C — hòa sau khi ngắt rồi đuổi lại
+
+### Tái hiện và nguyên nhân trước thay đổi
+
+Baseline R2-03B **273/273 PASS**. Không có biên bản ván người dùng; dưới đây là **fixture suy luận tương đương**, không khẳng định chính là ván đã báo. Đỏ: Tượng b1, Sĩ g1; Đen: Mã b3, Sĩ a4; 28 quân vắng mặt đưa vào captured đúng cơ cấu. Đỏ đi trước, không đặt sẵn kết quả, fault, quiet hoặc tần suất. Các nước đều chạy qua `applyAction` thật. Sĩ Đen chỉ làm nước chờ để phục hồi cùng bố cục công khai.
+
+Trên engine R2-03A, thế sau ply 21 trùng các thế ở **ply 1 và 5**, cùng lượt Đen và ánh xạ màu. Tượng đã ngắt run ở ply 19; run mới bắt đầu 21, count 1. Cửa sổ ba lần cũ `(1,21]` yêu cầu Đỏ đuổi liên tục từ lượt riêng đầu là ply 3; `startPly=21` không thỏa. Vì thế engine xử `draw / threefold_repetition`. **Đúng đặc tả C2 cũ, không phải lỗi luật ăn, đếm sai ply hoặc phạt Mã đang chạy.** Đề xuất R2-03C thay đổi cách đủ điều kiện của lần lặp.
+
+Test mới đã FAIL trên code cũ đúng tại assertion `status === playing` ở ply 21, rồi PASS sau thay đổi. Diagnostic trong test ghi toàn bộ action, `turn`, hai counter, `drawDeferred`, runs gồm ID/tọa độ/count, faults và result qua từng nước. Bảng rút gọn dưới đây dùng ID quan sát `v1` cho Tượng, `v3` cho Mã. Run của Đen luôn `[]`, faults luôn `[0,0]`; “—” ở run Đỏ là `[]`, số n là cặp `(v1,v3,count=n)`. Hai bộ đếm trước mốc 19 bằng nhau.
+
+| Ply | Nước | Lượt tiếp | `repetitionCount` | `drawRepetitionCount` mới | Run Đỏ | `drawDeferred` | Kết quả cũ → mới |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | Khởi tạo | Đỏ | 1 | 1 | — | [] | Chơi → chơi |
+| 1 | Tượng b1–b2 | Đen | 1 | 1 | 1 | [] | Chơi → chơi |
+| 2 | Mã b3–c3 | Đỏ | 1 | 1 | 1 | [] | Chơi → chơi |
+| 3 | Tượng b2–c2 | Đen | 1 | 1 | 2 | [] | Chơi → chơi |
+| 4 | Mã c3–b3 | Đỏ | 1 | 1 | 2 | [] | Chơi → chơi |
+| 5 | Tượng c2–b2 | Đen | 2 | 2 | 3 | [] | Chơi → chơi |
+| 6 | Mã b3–c3 | Đỏ | 2 | 2 | 3 | [] | Chơi → chơi |
+| 7 | Sĩ g1–h1 | Đen | 1 | 1 | — | [] | Chơi → chơi |
+| 8 | Sĩ a4–b4 | Đỏ | 1 | 1 | — | [] | Chơi → chơi |
+| 9 | Tượng b2–c2 | Đen | 1 | 1 | 1 | [] | Chơi → chơi |
+| 10 | Mã c3–b3 | Đỏ | 1 | 1 | 1 | [] | Chơi → chơi |
+| 11 | Tượng c2–b2 | Đen | 1 | 1 | 2 | [] | Chơi → chơi |
+| 12 | Mã b3–c3 | Đỏ | 2 | 2 | 2 | [] | Chơi → chơi |
+| 13 | Tượng b2–c2 | Đen | 2 | 2 | 3 | [] | Chơi → chơi |
+| 14 | Mã c3–b3 | Đỏ | 2 | 2 | 3 | [] | Chơi → chơi |
+| 15 | Tượng c2–b2 | Đen | 2 | 2 | 4 | [] | Chơi → chơi |
+| 16 | Mã b3–c3 | Đỏ | 3 | 3 | 4 | Hoãn lặp, Đỏ | Chơi → chơi |
+| 17 | Tượng b2–c2 | Đen | 3 | 3 | 5 | Hoãn lặp, Đỏ | Chơi → chơi |
+| 18 | Mã c3–b3 | Đỏ | 3 | 3 | 5 | Hoãn lặp, Đỏ | Chơi → chơi |
+| 19 | **Sĩ h1–g1 ngắt chuỗi** | Đen | 1 | 1 | — | [] | Chơi → chơi |
+| 20 | Sĩ b4–a4 | Đỏ | 2 | **1** | — | [] | Chơi → chơi |
+| 21 | **Tượng c2–b2 đuổi lại** | Đen | 3 | **1** | 1 | [] | **Hòa lặp → chơi** |
+
+Ply 7 ngắt một run nhưng chưa từng có hoãn hòa nên không mở mốc mới. Ply 19 chấm dứt đoạn đã hoãn ở 16–18 nên mở mốc 19. `noProgressPly` vẫn bằng số ply thật từ 0 đến 21; không lỗi kỹ thuật nào bị tạo/xóa. Vị trí sau ply 19 là lần đầu trong giai đoạn mới; tại 21 chỉ có một lần đủ điều kiện, dù tần suất lịch sử vẫn là 3.
+
+### Bất biến và kiểm thử
+
+Thêm **17 test unit** vào `tests/chase.test.cjs`; tổng chase **69** (14 ca đã có trước lượt tiếp tục, 3 ca bổ sung khi rà soát cuối). Bao phủ:
+
+- Chuỗi suy luận 21 ply phía trên và cả dữ liệu trace. Sau đó nếu tiếp tục cùng Tượng–Mã: lỗi đầu ở 33, lỗi hai ở 47; Đen chạy không nhận lỗi. C1 gốc vẫn giữ các mốc 8/13/27.
+- Từ mốc ngắt 19, hai Sĩ đi vòng chờ: ba lần **mới** của cùng thế ở 19/23/27 hòa tại 27. Không cấm hòa vĩnh viễn; bảng tần suất/mốc vẫn còn.
+- Năm vòng đuổi–ngắt, mỗi vòng 12 action hợp lệ: phase đổi ở 9/21/33/45/57 nhưng quiet vẫn tăng đến **60 và hòa đúng 60**. Thế cuối có tần suất lịch sử 16, đủ điều kiện mới 1, xác nhận kết thúc do 60.
+- Chạy thật 48 nước đuổi–ngắt rồi 12 nước đuổi liên tục để tạo hold tại **60**. Sĩ ngắt, đổi quân A hoặc đổi mục tiêu B tại **61** đều giải phóng hold và hòa 60, không gia hạn bởi phase mới. Nếu tiếp tục cùng cặp: lỗi đầu 61, lỗi hai 75; hold và counter giữ nguyên.
+- Lỗi đã nhận không mất sau ngắt; tiếp tục đuổi đủ bảy lần nữa vẫn thua lỗi hai. Hai cặp làm căn cứ hoãn chỉ thu hẹp: mất một cặp hoặc một nước chạy không tự mở phase, mất hết mới mở.
+- Ăn/lật reset quiet theo luật thật và giữ lỗi/lịch sử; invalid, JSON, UI metadata, public giả và clone sâu không thay thẩm quyền. Hoán đổi hidden identity qua 21 ply cho cùng public/legal/kết quả; getter hidden ném lỗi không bị đọc để tính public. Legacy đang hoãn có chứng cứ hiện tại nhận diện được; game over và Ván mới vẫn chuẩn.
+- Đổi độc lập người đuổi và màu quân vẫn giữ mốc mới 19, tiếp tục chơi ở 21, lỗi tại 33/47; người chạy không nhận lỗi. Ngắt run trước khi có hoãn (ply 7) không mở mốc mới.
+- Sau khi một bên đã hoãn rồi ngắt tại 9, hai Pháo cùng đuổi liên tục: các lần xuất hiện mới 9/13/17 vẫn hòa tại 17, không bên nào nhận lỗi.
+- Cặp hoãn bị loại rồi trở lại không được thêm lại vào tập căn cứ. Khi cặp còn lại chấm dứt tại 15, mở mốc mới dù cặp đã trở lại còn run; lỗi đầu tại 13 vẫn giữ, quiet vẫn là 15. Count của cặp trở lại bằng 1 tại 15 vì lỗi đầu reset mọi count ở 13; startPly vẫn là 13.
+
+**290/290 PASS = 273 hồi quy + 17 mới**, không fail/skip. Gồm 217 unit test Node và 73 test Chrome (tính cả hai test cha như baseline 273). Các assertion cũ về thắng/hòa không đổi. Chỉ ba assertion schema được bổ sung (key private lúc tạo ván, public ban đầu, public finished) và fixture giả lập legacy xóa thêm hai trường R2-03C để thực sự là state cũ. Không xóa/skip/nới test nền để đạt PASS.
+
+Lệnh full Node/Chrome và `node --check` ở RULES/README; `git diff --check` PASS. Chrome HTTP giữ toàn bộ kiểm tra PC/Mobile 320×568, 390×844, 768×1024, 1280×800 × Sáng/Tối × Ngang/Dọc, chuột/touch/bàn phím, DOM công khai và ca C1. Không sửa UI/test UI trong R2-03C: UI đã dùng `drawDeferred` và result authoritative, không đọc tần suất lịch sử để tự kết thúc. `repetitionCount` không đổi nghĩa; trường `drawRepetitionCount` được bổ sung cho người tiêu thụ API.
+
+Giới hạn: chưa có biên bản để xác minh chính xác ván người dùng; chưa kiểm tra điện thoại/trình đọc màn hình thật. State legacy đã ngắt trước khi nhập, không còn chứng cứ đang hoãn tại vị trí hiện tại và không có metadata mới thì không thể bịa lại mốc giai đoạn quá khứ. Không thêm replay/migration. Không thấy phản ví dụ phá bất biến C2.1/C3 trong phạm vi đã kiểm chứng.
+
+Giữ toàn bộ bảy file R2-03B dirty; R2-03C chỉ sửa engine/unit test và ba tài liệu RULES/CHASE_RULE_DESIGN/SPEC. HEAD vẫn `8edc566`, `main` ahead 3; không stage/commit/push/deploy, không đọc/sửa secret hoặc mở rộng SVG/âm thanh/R2-04.
+
+### Nghiệm thu lượt tiếp tục ngày 14/11/2026 — PASS
+
+Tiếp tục từ working tree đang có, không chạy lại triển khai hoặc dựng lại baseline 273. Lần kiểm tra đầu xác nhận **287/287 PASS** của trạng thái tiếp nhận. Rà soát diff engine, B2/C2/C3/C4 và các phản ví dụ chưa thấy vi phạm bất biến; không cần sửa engine thêm. Chỉ bổ sung ba test trên và hoàn thiện biên bản trong CHASE_RULE_DESIGN/SPEC. Một assertion mới ban đầu kỳ vọng count 2 đã được sửa thành 1 để đúng quy tắc lỗi đầu reset mọi count tại ply 13; giữ thêm assertion startPly và lỗi để kiểm chứng, không đổi luật.
+
+- Lần full cuối: **290 pass, 0 fail, 0 skipped, 0 cancelled, 0 todo** trên Node `v22.19.0`, Chrome HTTP `157.0.8103.51`. Log: `.local-qa/r2-03c-review-20261114-004340-5e97b680/final-full-test-2.txt`.
+- `node --check` toàn bộ **11 file JS/MJS/CJS** trong `js/` và `tests/` PASS; `git diff --check` PASS. Log kiểm tra và dấu SHA-256 đầu/cuối được giữ trong cùng thư mục QA mới, không ghi đè bằng chứng trước.
+- Chrome regression: `.local-qa/r2-01/regression/run-Sa6CVO/`; gameplay: `.local-qa/r2-01/gameplay/run-2SgAD7/`. Hai `report.json` đều có `browserErrors: []`; mỗi suite kiểm tra đủ 16 tổ hợp PC/mobile giả lập. C1, hold 60, chuột/touch/bàn phím, DOM công khai, Ván mới và game over PASS. Ván đầy đủ 32 quân vẫn kết thúc sau 83 hành động UI.
+- Git cuối vẫn **13 modified, 18 untracked**, không staged; `main` ahead `origin/main` 3, HEAD `8edc566`. Cả 18 untracked (ZIP và tài nguyên SVG/tài liệu đi kèm) giữ nguyên nội dung theo SHA-256.
+- Phần R2-03C đang nằm trong 7 file: `js/engine.mjs`, `tests/chase.test.cjs`, `tests/engine.test.cjs`, `tests/endgame.test.cjs`, `docs/RULES.md`, `docs/CHASE_RULE_DESIGN.md`, `docs/SPEC.md`. Sáu file modified còn lại được kế thừa nguyên trạng: `README.md`, `index.html`, `js/offline.mjs`, `style.css`, `tests/gameplay.test.cjs`, `tests/helpers/chrome.cjs`. Riêng lượt tiếp tục chỉ đổi `tests/chase.test.cjs`, `docs/CHASE_RULE_DESIGN.md`, `docs/SPEC.md`.
+
+Không còn việc triển khai hoặc kiểm tra bắt buộc dang dở trong phạm vi R2-03C. Giới hạn vẫn là fixture suy luận thay cho biên bản ván thật, thiết bị mobile giả lập, chưa Safari/Firefox/trình đọc màn hình thật và không khôi phục metadata giai đoạn đã mất của state legacy. Không reset/undo/clean, không sửa UI/SVG/âm thanh/Online/Bot, không stage/commit/push/deploy và không truy cập secret.

@@ -36,6 +36,12 @@ function play(state, action) {
 }
 const LOOP = [move("b2", "c2"), move("c3", "b3"), move("c2", "b2"), move("b3", "c3")];
 const c1 = (extra = {}, options) => fixture({ b2: red("general"), c3: black("advisor"), ...extra }, options);
+// R2-03C: inferred equivalent, not a claimed transcript of the user's game.
+const elephantStart = (extra = {}) => fixture({ b1: red("elephant"), b3: black("horse"),
+  g1: red("advisor"), a4: black("advisor"), ...extra });
+const ELEPHANT_BREAK = ("b1-b2 b3-c3 b2-c2 c3-b3 c2-b2 b3-c3 g1-h1 a4-b4 " +
+  "b2-c2 c3-b3 c2-b2 b3-c3 b2-c2 c3-b3 c2-b2 b3-c3 b2-c2 c3-b3 h1-g1 b4-a4 c2-b2")
+  .split(" ").map((s) => move(...s.split("-")));
 function cycle(state, plies, offset = 0) {
   for (let i = 0; i < plies; i++) state = play(state, LOOP[(i + offset) % 4]);
   return state;
@@ -104,6 +110,313 @@ test("C1 đối xứng: người 1/màu Đen đuổi, người 0 thắng ở ply
   const state = cycle(fixture({ b2: black("general"), c3: red("advisor") }, { turn: 1 }), 27);
   ended(state, "chase_technical_fouls", 0);
   assert.deepEqual(state.chaseFaults, [0, 2]);
+});
+
+test("R2-03C Tượng–Mã/Sĩ: ngắt tại 19, đuổi lại tại 21 không dùng lần lặp cũ để hòa", (t) => {
+  let state = elephantStart();
+  const trace = [];
+  for (let ply = 0; ply <= ELEPHANT_BREAK.length; ply++) {
+    if (ply) state = play(state, ELEPHANT_BREAK[ply - 1]);
+    const view = getPublicState(state);
+    trace.push({ ply, action: ply ? ELEPHANT_BREAK[ply - 1] : null, turn: view.turn,
+      repetitionCount: view.repetitionCount, drawRepetitionCount: view.drawRepetitionCount,
+      drawDeferred: view.chase.drawDeferred, runs: view.chase.runs,
+      faults: view.chase.faults, result: view.result });
+    assert.deepEqual(view.chase.faults, [0, 0]);
+    if (ply === 18) {
+      assert.equal(view.chase.drawDeferred[0].player, 0);
+      assert.equal(view.chase.runs[0][0].count, 5);
+    }
+    if (ply === 19) assert.deepEqual(view.chase.runs, [[], []]);
+  }
+  t.diagnostic(JSON.stringify(trace));
+  assert.equal(state.status, "playing", "Old C2 drew at ply 21 using occurrences 1, 5, 21");
+  assert.equal(getPublicState(state).repetitionCount, 3, "Audit history is retained");
+  assert.equal(getPublicState(state).drawRepetitionCount, 1, "Only occurrence 21 belongs to the new phase");
+  assert.equal(state.runs[0][0].count, 1);
+  assert.equal(state.runs[0][0].startPly, 21);
+  assert.equal(state.noProgressPly, 21);
+  assert.deepEqual(reasons(state), []);
+});
+
+test("R2-03C ba lần lặp mới bằng nước chờ vẫn hòa, giữ tần suất/mốc cũ để kiểm toán", () => {
+  let state = ELEPHANT_BREAK.slice(0, 19).reduce(play, elephantStart());
+  assert.equal(state.repetitionEpochStart, 19);
+  const oldCounts = structuredClone(state.positionCounts);
+  const waiting = [move("b4", "a4"), move("g1", "h1"), move("a4", "b4"), move("h1", "g1")];
+  for (let step = 0; step < 8; step++) {
+    state = play(state, waiting[step % 4]);
+    if (step < 7) assert.equal(state.status, "playing");
+    if (step === 3) assert.equal(getPublicState(state).drawRepetitionCount, 2);
+  }
+  ended(state, "threefold_repetition");
+  assert.equal(state.ply, 27);
+  assert.equal(getPublicState(state).drawRepetitionCount, 3);
+  assert.deepEqual(state.chaseFaults, [0, 0]);
+  for (const [key, count] of Object.entries(oldCounts)) assert.ok(state.positionCounts[key] >= count);
+  assert.equal(Object.values(state.positionCounts).reduce((a, b) => a + b, 0), 28);
+  assert.ok(Object.values(state.positionLastPlies).some((plies) => plies.join() === "19,23,27"));
+});
+
+test("R2-03C đuổi lại liên tục vẫn ghi lỗi 1 tại 33, lỗi 2 tại 47; người chạy không bị phạt", () => {
+  let state = ELEPHANT_BREAK.reduce(play, elephantStart());
+  for (let ply = 22; ply <= 47; ply++) {
+    const action = LOOP[(ply - 19) % 4];
+    if (ply === 33 || ply === 47) {
+      const warning = getPublicState(state).chase.warnings.find((w) => JSON.stringify(w.action) === JSON.stringify(action));
+      assert.equal(warning.nextFault, ply === 33 ? 1 : 2);
+    }
+    state = play(state, action);
+    assert.equal(state.repetitionEpochStart, 19, "Fleeing moves/first fault do not start another phase");
+    assert.equal(state.chaseFaults[1], 0);
+    if (ply < 47) assert.equal(state.status, "playing");
+    if (ply === 33) assert.deepEqual(state.chaseFaults, [1, 0]);
+  }
+  ended(state, "chase_technical_fouls", 1);
+});
+
+const elephantLoopStart = (extra = {}) => fixture({ b2: red("elephant"), c3: black("horse"),
+  g1: red("advisor"), a4: black("advisor"), ...extra });
+const CHASE_AND_WAIT = [...LOOP, ...LOOP, move("g1", "h1"), move("a4", "b4"), move("h1", "g1"), move("b4", "a4")];
+function repeatedBreaks(plies, extra = {}) {
+  let state = elephantLoopStart(extra);
+  for (let ply = 1; ply <= plies; ply++) {
+    state = play(state, CHASE_AND_WAIT[(ply - 1) % CHASE_AND_WAIT.length]);
+    assert.equal(state.noProgressPly, ply, "Changing repetition phase never resets quiet ply");
+    if (ply < 60) assert.equal(state.status, "playing");
+  }
+  return state;
+}
+
+test("R2-03C đuổi–ngắt lặp lại qua 60 nước thật: năm phase mới vẫn hòa đúng 60", () => {
+  const state = repeatedBreaks(60);
+  ended(state, "no_progress_60");
+  assert.equal(state.repetitionEpochStart, 57);
+  assert.equal(state.ply, 60);
+  assert.deepEqual(state.chaseFaults, [0, 0]);
+  assert.equal(state.quietDrawHold, null);
+  assert.equal(getPublicState(state).repetitionCount, 16);
+  assert.equal(getPublicState(state).drawRepetitionCount, 1);
+});
+
+function reachRealHold(extra = {}) {
+  let state = repeatedBreaks(48, extra);
+  for (let i = 0; i < 12; i++) state = play(state, LOOP[i % 4]);
+  assert.equal(state.noProgressPly, 60);
+  assert.equal(state.status, "playing");
+  assert.equal(state.quietDrawHold.player, 0);
+  assert.equal(state.runs[0][0].count, 6);
+  return state;
+}
+for (const [name, extra, action, runCount] of [
+  ["Sĩ ngắt", {}, move("g1", "h1"), 0],
+  ["đổi quân A", { d2: red("elephant") }, move("d2", "c2"), 1],
+  ["đổi mục tiêu B", { c1: black("horse") }, move("b2", "b1"), 1],
+]) test(`R2-03C sau 60 ply thật, ${name} mở phase mới vẫn giải phóng hold tại 61`, () => {
+  const state = play(reachRealHold(extra), action);
+  ended(state, "no_progress_60");
+  assert.equal(state.ply, 61);
+  assert.equal(state.noProgressPly, 61);
+  assert.equal(state.repetitionEpochStart, 61);
+  assert.equal(state.quietDrawHold, null);
+  assert.equal(state.repetitionChase, null);
+  assert.equal(state.runs[0].length, runCount);
+  assert.deepEqual(state.chaseFaults, [0, 0]);
+});
+
+test("R2-03C sau 60 ply thật, giữ cặp hold: lỗi 1 tại 61, lỗi 2 tại 75", () => {
+  let state = reachRealHold();
+  const hold = structuredClone(state.quietDrawHold);
+  const start = state.repetitionEpochStart;
+  for (let ply = 61; ply <= 75; ply++) {
+    state = play(state, LOOP[(ply - 61) % 4]);
+    assert.equal(state.noProgressPly, ply);
+    assert.deepEqual(state.quietDrawHold, hold);
+    assert.equal(state.repetitionEpochStart, start);
+    if (ply === 61) assert.deepEqual(state.chaseFaults, [1, 0]);
+  }
+  ended(state, "chase_technical_fouls", 1);
+});
+
+test("R2-03C lỗi đầu không bị xóa khi Sĩ ngắt rồi Tượng đuổi lại", () => {
+  let state = cycle(elephantLoopStart(), 14);
+  assert.deepEqual(state.chaseFaults, [1, 0]);
+  state = play(state, move("g1", "h1"));
+  assert.equal(state.repetitionEpochStart, 15);
+  assert.deepEqual(state.chaseFaults, [1, 0]);
+  state = play(state, move("a4", "b4"));
+  for (let ply = 17; ply <= 29; ply++) state = play(state, LOOP[(ply - 15) % 4]);
+  ended(state, "chase_technical_fouls", 1);
+  assert.equal(state.ply, 29);
+});
+
+test("R2-03C nhiều cặp hoãn: mất một cặp chưa mở phase; mất hết mới mở, nước chạy không xóa", () => {
+  let state = fixture({ c2: red("cannon"), b2: red("pawn"), f2: red("pawn"),
+    a2: black("horse"), h2: black("horse"), h4: black("pawn") });
+  const loop = [move("c2", "d2"), move("h4", "g4"), move("d2", "c2"), move("g4", "h4")];
+  for (let i = 0; i < 8; i++) state = play(state, loop[i % 4]);
+  assert.equal(state.repetitionChase.pairs.length, 2);
+  state = play(state, loop[0]);
+  state = play(state, move("a2", "a3"));
+  assert.equal(state.repetitionChase.pairs.length, 2, "Fleeing reply does not end the attacker's run");
+  state = play(state, loop[2]);
+  assert.equal(state.repetitionChase.pairs.length, 1);
+  assert.equal(state.repetitionEpochStart, 0);
+  state = play(state, move("h4", "g4"));
+  state = play(state, move("c2", "c1"));
+  assert.equal(state.repetitionEpochStart, 13);
+  assert.equal(state.repetitionChase, null);
+});
+
+for (const [name, extra, reply, action] of [
+  ["lật", { h4: red("pawn", true) }, LOOP[1], flip("h4")],
+  ["ăn", {}, move("a4", "b4"), move("c2", "c3")],
+]) test(`R2-03C ${name} ngắt đoạn đã hoãn: reset quiet hợp lệ, giữ lỗi/lịch sử`, () => {
+  let state = cycle(elephantLoopStart(extra), 13);
+  state = play(state, reply);
+  const counts = structuredClone(state.positionCounts);
+  state = play(state, action);
+  assert.equal(state.repetitionEpochStart, 15);
+  assert.equal(state.repetitionChase, null);
+  assert.deepEqual(state.chaseFaults, [1, 0]);
+  assert.equal(state.noProgressPly, 0);
+  assert.deepEqual(state.runs, [[], []]);
+  for (const [key, value] of Object.entries(counts)) assert.equal(state.positionCounts[key], value);
+});
+
+test("R2-03C phase clone/JSON/invalid/public giả/hidden identity, không lộ metadata mới", () => {
+  let a = elephantStart({ g4: red("rook", true), h4: black("pawn", true) });
+  let b = structuredClone(a);
+  [b.board[at("g4")], b.board[at("h4")]] = [b.board[at("h4")], b.board[at("g4")]];
+  for (const action of ELEPHANT_BREAK) {
+    a = play(a, action); b = play(b, action);
+    assert.deepEqual(getPublicState(a), getPublicState(b));
+    assert.deepEqual(getLegalActions(getPublicState(a), a.turn), getLegalActions(getPublicState(b), b.turn));
+    assert.deepEqual(a.positionCounts, b.positionCounts);
+    assert.deepEqual(a.positionLastPlies, b.positionLastPlies);
+  }
+  const saved = structuredClone(a), view = getPublicState(a);
+  view.drawRepetitionCount = 99;
+  assert.doesNotMatch(JSON.stringify(view), /repetitionEpochStart|repetitionChase|positionCounts|positionLastPlies/);
+  for (const [player, action, error] of [[0, LOOP[0], "NOT_YOUR_TURN"],
+    [1, { type: "pass" }, "INVALID_ACTION"], [1, move("b3", "h1"), "ILLEGAL_ACTION"]]) {
+    assert.deepEqual(applyAction(a, player, action), { ok: false, error });
+    assert.deepEqual(a, saved);
+  }
+  const copied = JSON.parse(JSON.stringify(a)); copied.orientation = "vertical"; copied.theme = "dark";
+  assert.deepEqual(getPublicState(a), getPublicState(copied));
+  assert.deepEqual(play(a, move("b3", "c3")), play(copied, move("b3", "c3")));
+  const guarded = structuredClone(a);
+  for (const key of ["color", "type"]) Object.defineProperty(guarded.board[at("h4")], key,
+    { get() { throw new Error(`Hidden read: ${key}`); } });
+  assert.deepEqual(getPublicState(guarded), getPublicState(a));
+  const pending = cycle(elephantLoopStart(), 8), original = structuredClone(pending);
+  const next = play(pending, LOOP[0]);
+  next.repetitionChase.pairs[0].attackerId = "changed";
+  next.repetitionEpochStart = 999;
+  assert.deepEqual(pending, original);
+});
+
+test("R2-03C legacy đang hoãn có chứng cứ hiện tại thì nhận diện được; Ván mới/game over giữ chuẩn", () => {
+  let state = ELEPHANT_BREAK.slice(0, 18).reduce(play, elephantStart());
+  state = structuredClone(state);
+  delete state.repetitionEpochStart; delete state.repetitionChase;
+  for (const action of ELEPHANT_BREAK.slice(18)) state = play(state, action);
+  assert.equal(state.status, "playing");
+  assert.equal(state.repetitionEpochStart, 19);
+  assert.equal(getPublicState(state).drawRepetitionCount, 1);
+  const endedState = repeatedBreaks(60), saved = structuredClone(endedState);
+  for (const player of [0, 1, -1]) {
+    assert.deepEqual(getLegalActions(getPublicState(endedState), player), []);
+    assert.deepEqual(applyAction(endedState, player, LOOP[0]), { ok: false, error: "GAME_OVER" });
+  }
+  assert.deepEqual(endedState, saved);
+  const fresh = createGame();
+  assert.equal(fresh.repetitionEpochStart, 0);
+  assert.equal(fresh.repetitionChase, null);
+  assert.equal(getPublicState(fresh).drawRepetitionCount, 1);
+});
+
+test("R2-03C đổi người/màu: cùng mốc 19/21 và lỗi 33/47, không phạt người chạy", () => {
+  for (const [player, color] of [[0, "black"], [1, "red"], [1, "black"]]) {
+    let state = elephantStart();
+    if (color === "black") {
+      for (const p of [...state.board.filter(Boolean), ...state.captured]) {
+        p.color = p.color === "red" ? "black" : "red";
+      }
+    }
+    state.turn = player;
+    state.playerColors = player === 0 ? [color, color === "red" ? "black" : "red"]
+      : [color === "red" ? "black" : "red", color];
+    for (let ply = 1; ply <= 47; ply++) {
+      state = play(state, ply <= 21 ? ELEPHANT_BREAK[ply - 1] : LOOP[(ply - 19) % 4]);
+      const view = getPublicState(state);
+      assert.equal(state.repetitionEpochStart, ply < 19 ? 0 : 19);
+      assert.equal(state.noProgressPly, ply);
+      assert.equal(view.chase.faults[1 - player], 0);
+      if (ply >= 16 && ply <= 18) assert.equal(view.chase.drawDeferred[0].player, player);
+      if (ply === 21) {
+        assert.equal(view.repetitionCount, 3);
+        assert.equal(view.drawRepetitionCount, 1);
+        assert.equal(view.chase.runs[player][0].count, 1);
+      }
+      if (ply === 33) assert.equal(view.chase.faults[player], 1);
+      if (ply < 47) assert.equal(state.status, "playing");
+    }
+    ended(state, "chase_technical_fouls", 1 - player);
+    assert.equal(state.chaseFaults[player], 2);
+  }
+});
+
+test("R2-03C sau mốc mới, hai bên cùng đuổi vẫn hòa ba lần, không phạt bên nào", () => {
+  let state = fixture({ a1: red("cannon"), d1: red("pawn"), a4: red("advisor"),
+    h1: black("cannon"), h4: black("horse") });
+  const oneSide = [move("a1", "b1"), move("h4", "g4"), move("b1", "a1"), move("g4", "h4")];
+  for (let i = 0; i < 8; i++) state = play(state, oneSide[i % 4]);
+  assert.equal(getPublicState(state).chase.drawDeferred[0].player, 0);
+  state = play(state, move("a4", "b4"));
+  assert.equal(state.repetitionEpochStart, 9);
+  const bothSides = [move("h1", "g1"), move("a1", "b1"), move("g1", "h1"), move("b1", "a1")];
+  for (let i = 0; i < 8; i++) {
+    state = play(state, bothSides[i % 4]);
+    assert.equal(state.repetitionEpochStart, 9);
+    if (i < 7) assert.equal(state.status, "playing");
+  }
+  ended(state, "threefold_repetition");
+  assert.equal(state.ply, 17);
+  assert.equal(getPublicState(state).drawRepetitionCount, 3);
+  assert.deepEqual(state.chaseFaults, [0, 0]);
+  assert.deepEqual(state.runs.map((list) => list.map((r) => r.count)), [[4], [4]]);
+  assert.deepEqual(reasons(state), []);
+});
+
+test("R2-03C cặp hoãn đã mất rồi trở lại không được nối lại để trì hoãn mốc mới", () => {
+  let state = fixture({ c2: red("cannon"), b2: red("pawn"), f2: red("pawn"),
+    a2: black("horse"), h2: black("horse"), h4: black("pawn") });
+  const loop = [move("c2", "d2"), move("h4", "g4"), move("d2", "c2"), move("g4", "h4")];
+  for (let i = 0; i < 8; i++) state = play(state, loop[i % 4]);
+  assert.equal(state.repetitionChase.pairs.length, 2);
+  state = play(state, loop[0]);
+  state = play(state, move("a2", "a3"));
+  state = play(state, loop[2]);
+  assert.equal(state.repetitionChase.pairs.length, 1);
+  const remaining = structuredClone(state.repetitionChase);
+  state = play(state, move("a3", "a2"));
+  state = play(state, loop[0]);
+  assert.equal(state.runs[0].length, 2);
+  assert.deepEqual(state.repetitionChase, remaining);
+  assert.equal(state.repetitionEpochStart, 0);
+  state = play(state, move("h2", "h3"));
+  state = play(state, loop[2]);
+  assert.equal(state.status, "playing");
+  assert.equal(state.repetitionEpochStart, 15);
+  assert.equal(state.repetitionChase, null);
+  assert.equal(runs(state)[0].targetAt, "a2");
+  assert.equal(runs(state)[0].count, 1, "The first fault at ply 13 reset all counts, including the returning pair");
+  assert.equal(state.runs[0][0].startPly, 13);
+  assert.equal(getPublicState(state).drawRepetitionCount, 1);
+  assert.equal(state.noProgressPly, 15);
+  assert.deepEqual(state.chaseFaults, [1, 0]);
 });
 
 test("7 lần đuổi qua thế mới: lỗi đầu ply 13 không cần lặp", () => {
@@ -357,7 +670,7 @@ test("Hai Xe cùng loại đổi chỗ bằng nước thật: ID đổi ô nhưn
 
 test("Legacy không bịa lịch sử chase; ván mới reset toàn bộ metadata", () => {
   const legacy = structuredClone(cycle(c1(), 12));
-  for (const key of ["ply", "visibleIds", "nextVisibleId", "runs", "chaseFaults", "positionLastPlies", "quietDrawHold"]) delete legacy[key];
+  for (const key of ["ply", "visibleIds", "nextVisibleId", "runs", "chaseFaults", "positionLastPlies", "quietDrawHold", "repetitionEpochStart", "repetitionChase"]) delete legacy[key];
   const view = getPublicState(legacy);
   assert.deepEqual(view.chase, { faults: [0, 0], runs: [[], []], drawDeferred: [], warnings: [] });
   const next = play(legacy, LOOP[0]);

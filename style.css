@@ -21,6 +21,8 @@
   --black-bg: #e0e5e8;
   --move-bg: #e0ecf1;
   --axis-ink: #62574a;
+  --warning-ink: #793700;
+  --warning-bg: #fff0d3;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
   background: var(--page-bg);
@@ -50,6 +52,8 @@
   --black-bg: #202e3c;
   --move-bg: #344b57;
   --axis-ink: #d4c9b7;
+  --warning-ink: #ffd28a;
+  --warning-bg: #392e20;
 }
 
 /* System dark palette also works when JavaScript is unavailable. */
@@ -77,6 +81,8 @@
     --black-bg: #202e3c;
     --move-bg: #344b57;
     --axis-ink: #d4c9b7;
+    --warning-ink: #ffd28a;
+    --warning-bg: #392e20;
   }
 }
 
@@ -237,6 +243,7 @@ button:focus-visible, .cell:focus-visible {
 }
 
 .cell {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   place-items: center;
@@ -297,6 +304,43 @@ button:focus-visible, .cell:focus-visible {
 .cell.can-capture {
   outline: 2px dashed var(--focus);
   outline-offset: -3px;
+}
+
+.cell.chase-warning {
+  box-shadow: inset 0 0 0 2px var(--warning-ink);
+}
+
+.chase-marker {
+  position: absolute;
+  inset: 1px 1px auto auto;
+  display: grid;
+  place-items: center;
+  width: clamp(12px, 2vw, 22px);
+  aspect-ratio: 1;
+  border: 1px solid var(--warning-ink);
+  border-radius: 50%;
+  color: var(--warning-bg);
+  background: var(--warning-ink);
+  font-size: clamp(11px, 1.5vw, 16px);
+  line-height: 1;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.chase-status {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-inline-start: 3px solid var(--warning-ink);
+  border-radius: 0.3rem;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.chase-status:empty {
+  display: none;
 }
 
 .cell:focus-visible {

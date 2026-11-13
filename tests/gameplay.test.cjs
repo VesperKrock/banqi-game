@@ -98,6 +98,37 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode, ...(text ? { text, unmodifiedText: text } : {}) });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode });
   };
+  async function pointerSquare(position, kind) {
+    const point = await evaluate(`(() => { const cell = document.querySelector('#cell-${at(position)}'); cell.scrollIntoView({block: 'center'}); const r = cell.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
+    if (kind === "touch") {
+      await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+      await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    } else {
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 });
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 });
+    }
+  }
+  async function assertWarnings(state, selected = null) {
+    const warnings = getPublicState(state).chase.warnings.filter((w) => selected === null || w.action.from === selected);
+    const marked = await evaluate("Array.from(document.querySelectorAll('.chase-warning'), cell => cell.id).sort()");
+    assert.deepEqual(marked, selected === null ? [] : warnings.map((w) => `cell-${at(w.action.to)}`).sort());
+    const notice = await text("#chase-status");
+    for (const warning of warnings) {
+      const action = `${warning.action.from}–${warning.action.to}`;
+      assert.ok(notice.includes(action), `Specific action ${action} announced BEFORE activation`);
+      assert.ok(notice.includes(`lỗi ${warning.nextFault}/2`));
+      if (warning.losesGame) assert.match(notice, /lỗi 2\/2 và xử thua/);
+      if (selected !== null) {
+        const info = await evaluate(`(() => { const c = document.querySelector('#cell-${at(warning.action.to)}'); return {label: c.getAttribute('aria-label'), description: c.getAttribute('aria-describedby'), marker: c.querySelector('.chase-marker')?.textContent, disabled: c.getAttribute('aria-disabled')}; })()`);
+        assert.ok(info.label.includes(action));
+        assert.ok(info.label.includes(`lỗi ${warning.nextFault}/2`));
+        assert.equal(info.description, "chase-status");
+        assert.equal(info.marker, "!");
+        assert.equal(info.disabled, "false", "Warned action remains playable");
+      }
+    }
+  }
   async function assertBoard(state) {
     const view = getPublicState(state);
     const actual = await evaluate(`Array.from(document.querySelectorAll('.cell'), cell => ({face: cell.textContent, label: cell.getAttribute('aria-label'), disabled: cell.getAttribute('aria-disabled')}))`);
@@ -382,6 +413,251 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     assert.equal(state.status, "finished", `Game did not finish after ${steps} actions`);
     assert.match(await text("#game-status"), /thắng|Hòa/);
     t.diagnostic(`Ván tái lập hoàn thành sau ${steps} hành động qua UI: ${state.result.reason}`);
+  });
+
+  const chaseLoop = [move("b2", "c2"), move("c3", "b3"), move("c2", "b2"), move("b3", "c3")];
+  const chaseStart = (extra = {}) => fixture({ b2: piece("red", "general"), c3: piece("black", "advisor"), ...extra });
+  function advanceChase(state, plies) {
+    for (let i = 0; i < plies; i++) {
+      const result = applyAction(state, state.turn, chaseLoop[i % 4]);
+      assert.equal(result.ok, true);
+      state = result.state;
+    }
+    return state;
+  }
+
+  await t.test("R2-03B C1 qua UI: ply 8 chưa hòa, chuột gây lỗi 1 ở 13, touch gây lỗi 2 ở 27", async () => {
+    let state = chaseStart();
+    await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await load(state);
+    await click("button[data-theme=light]");
+    for (let ply = 1; ply <= 27; ply++) {
+      const action = chaseLoop[(ply - 1) % 4];
+      if (ply === 13 || ply === 27) {
+        const input = ply === 13 ? "mouse" : "touch";
+        if (input === "touch") {
+          await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+          await send("Emulation.setTouchEmulationEnabled", { enabled: true });
+          await click("button[data-theme=dark]");
+          await click("button[data-orientation=vertical]");
+        }
+        await assertWarnings(state);
+        await pointerSquare(action.from, input);
+        await assertWarnings(state, action.from);
+        assert.match(await text("#chase-status"), /6\/6/);
+        const tree = await send("Accessibility.getFullAXTree");
+        assert.ok(tree.nodes.some((node) => node.role?.value === "button" && node.name?.value.includes(`${action.from}–${action.to}`) && node.name.value.includes(`lỗi ${ply === 13 ? 1 : 2}/2`)));
+        await browser.screenshot(`chase-before-ply-${ply}`);
+        await pointerSquare(action.to, input);
+        state = applyAction(state, state.turn, action).state;
+        await assertBoard(state);
+      } else state = await play(state, action);
+      if (ply < 27) assert.match(await text("#game-status"), /^Lượt Người/);
+      if (ply === 8) {
+        assert.equal(getPublicState(state).repetitionCount, 3);
+        assert.match(await text("#chase-status"), /Chưa hòa lặp 3 lần: Người 1 \(Đỏ\)/);
+        assert.deepEqual(state.chaseFaults, [0, 0]);
+      }
+      if (ply === 9) assert.match(await text("#chase-status"), /đã đuổi cùng quân 5\/6/);
+      if (ply === 13) {
+        assert.deepEqual(state.chaseFaults, [1, 0]);
+        assert.match(await text("#chase-status"), /Người 1 \(Đỏ\): lỗi trường tróc 1\/2\. Ván tiếp tục/);
+        assert.equal(await text("#game-status"), "Lượt Người 2 · Đen");
+        assert.match(await text("#action-feedback"), /Tướng Đỏ b2 → c2/);
+        await browser.screenshot("chase-after-first-fault");
+      }
+    }
+    assert.equal(state.result.reason, "chase_technical_fouls");
+    assert.equal(await text("#game-status"), "Người 2 (Đen) thắng — Người 1 (Đỏ) thua do hai lỗi trường tróc (2/2).");
+    assert.match(await text("#chase-status"), /lỗi trường tróc 2\/2/);
+    assert.doesNotMatch(await evaluate("document.body.innerText"), /undefined|NaN/);
+    const before = await dom(), notice = await text("#chase-status");
+    await pointerSquare("b2", "touch"); await pointerSquare("b3", "touch");
+    await evaluate("document.querySelector('#cell-9').focus()");
+    await key("Enter", "Enter", 13, "\r"); await key(" ", "Space", 32, " ");
+    assert.deepEqual(await dom(), before);
+    assert.equal(await text("#chase-status"), notice);
+    await browser.screenshot("chase-finished-mobile");
+    await send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await click("#new-game");
+    assert.equal(await text("#chase-status"), "");
+    assert.equal(await text("#board"), "?".repeat(32));
+  });
+
+  await t.test("Warning đúng đích trước Tab/Enter/Space; focus rõ và không chặn nước lỗi", async () => {
+    const state = advanceChase(chaseStart(), 12);
+    for (const theme of ["light", "dark"]) {
+      await load(state); await click(`button[data-theme=${theme}]`);
+      await evaluate("document.querySelector('#cell-9').focus()");
+      await key("Enter", "Enter", 13, "\r");
+      await assertWarnings(state, "b2");
+      await key("Tab", "Tab", 9);
+      assert.equal(await evaluate("document.activeElement.id"), "cell-10");
+      assert.match(await evaluate("document.activeElement.getAttribute('aria-label')"), /b2–c2: lỗi 1\/2/);
+      assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineWidth"), "3px");
+      assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid");
+      await key(" ", "Space", 32, " ");
+      const after = applyAction(state, 0, chaseLoop[0]).state;
+      await assertBoard(after);
+      assert.match(await text("#chase-status"), /lỗi trường tróc 1\/2\. Ván tiếp tục/);
+      assert.equal(await evaluate("document.activeElement.id"), "cell-10");
+    }
+  });
+
+  await t.test("Chọn/bỏ/đổi quân lọc đúng nhiều warning; invalid và đổi giao diện không sửa trạng thái hoặc spam", async () => {
+    const state = advanceChase(chaseStart({ a1: piece("red", "rook"), h4: piece("black", "rook") }), 12);
+    await load(state);
+    assert.equal(getPublicState(state).chase.warnings.length, 2);
+    await assertWarnings(state);
+    await clickSquare("b2"); await assertWarnings(state, "b2");
+    await clickSquare("b2"); await assertWarnings(state);
+    await clickSquare("a1"); await assertWarnings(state, "a1");
+    assert.doesNotMatch(await text("#chase-status"), /Cảnh báo b2–/);
+    await clickSquare("b2"); await assertWarnings(state, "b2");
+    const before = await dom(), notice = await text("#chase-status");
+    await evaluate("window.chaseWrites = 0; new MutationObserver(() => window.chaseWrites++).observe(document.querySelector('#chase-status'), {childList: true, subtree: true}); document.querySelector('#cell-9').focus();");
+    for (const bad of ["h4", "h3", "h3"]) await clickSquare(bad);
+    assert.deepEqual(await dom(), before);
+    for (const theme of ["light", "dark"]) for (const orientation of ["horizontal", "vertical"]) {
+      await click(`button[data-theme=${theme}]`); await click(`button[data-orientation=${orientation}]`);
+      await assertWarnings(state, "b2");
+      assert.equal(await text("#game-status"), before.status);
+      assert.equal(await text("#chase-status"), notice);
+      assert.equal(await evaluate("document.activeElement.id"), "cell-9");
+    }
+    // Unselect/reselect the sole attacker leaves the same warning text.
+    await clickSquare("b2"); await clickSquare("b2");
+    assert.equal(await evaluate("window.chaseWrites"), 0);
+    await clickSquare("c2");
+    await assertBoard(applyAction(state, 0, chaseLoop[0]).state);
+    assert.match(await text("#chase-status"), /lỗi trường tróc 1\/2/);
+  });
+
+  await t.test("Nước không warning vẫn đi bình thường; không gắn cảnh báo vào mọi đích", async () => {
+    const state = advanceChase(chaseStart(), 12);
+    await load(state); await clickSquare("b2");
+    await assertWarnings(state, "b2");
+    assert.equal(await evaluate("document.querySelector('#cell-8').classList.contains('chase-warning')"), false);
+    assert.doesNotMatch(await evaluate("document.querySelector('#cell-8').getAttribute('aria-label')"), /lỗi|Cảnh báo/);
+    await clickSquare("a2");
+    const next = applyAction(state, 0, move("b2", "a2")).state;
+    assert.deepEqual(next.chaseFaults, [0, 0]);
+    await assertBoard(next);
+    assert.equal(await text("#chase-status"), "");
+  });
+
+  await t.test("Hoãn hòa 60 nêu đúng người; ngừng chuỗi hòa, lật quân xóa hold", async () => {
+    // Counter-only boundary fixture, not a claimed replay of 59 earlier plies.
+    let state = chaseStart(); state.noProgressPly = 59;
+    await load(state);
+    state = await play(state, chaseLoop[0]);
+    assert.match(await text("#chase-status"), /Chưa hòa sau 60 nửa-lượt: Người 1 \(Đỏ\)/);
+    assert.match(await text("#game-status"), /^Lượt Người 2/);
+    state = await play(state, chaseLoop[1]);
+    state = await play(state, move("c2", "d2"));
+    assert.equal(state.result.reason, "no_progress_60");
+    assert.equal(await text("#game-status"), "Hòa — 60 nửa-lượt không lật hoặc ăn quân.");
+    assert.equal(await text("#chase-status"), "");
+    state = chaseStart({ h4: piece("red", "pawn", true) }); state.noProgressPly = 59;
+    state = advanceChase(state, 13);
+    await load(state);
+    state = await play(state, flip("h4"));
+    assert.deepEqual(state.chaseFaults, [1, 0]);
+    assert.equal(state.noProgressPly, 0);
+    assert.doesNotMatch(await text("#chase-status"), /Chưa hòa|Cảnh báo/);
+    assert.match(await text("#chase-status"), /lỗi trường tróc 1\/2/);
+  });
+
+  await t.test("Ván mới sau lỗi 1: hủy giữ thông báo/counter, đồng ý xóa lỗi và dấu !", async () => {
+    let state = advanceChase(chaseStart(), 12);
+    await load(state); state = await play(state, chaseLoop[0]);
+    await click("button[data-theme=dark]"); await click("button[data-orientation=vertical]");
+    const before = await dom(), notice = await text("#chase-status");
+    await confirmNewGame(false);
+    assert.deepEqual(await dom(), before); assert.equal(await text("#chase-status"), notice);
+    await confirmNewGame(true);
+    assert.equal(await text("#chase-status"), "");
+    assert.equal(await evaluate("document.querySelectorAll('.chase-warning, .chase-marker, [aria-describedby=chase-status]').length"), 0);
+    assert.equal(await text("#board"), "?".repeat(32));
+    assert.equal(await evaluate("document.documentElement.dataset.theme"), "dark");
+    assert.equal(await evaluate("document.querySelector('#board').dataset.orientation"), "vertical");
+  });
+
+  await t.test("Chase public công bằng: đổi danh tính úp không đổi DOM/label/warning/event hoặc log", async () => {
+    const a = advanceChase(chaseStart({ g4: piece("red", "rook", true), h4: piece("black", "pawn", true) }), 12);
+    const b = structuredClone(a);
+    [b.board[at("g4")], b.board[at("h4")]] = [b.board[at("h4")], b.board[at("g4")]];
+    const { identifier } = await send("Page.addScriptToEvaluateOnNewDocument", { source: `
+      window.testConsoleCalls = [];
+      for (const name of ['log', 'warn', 'error', 'info', 'debug']) {
+        const original = console[name]; console[name] = (...args) => { window.testConsoleCalls.push(name); original.apply(console, args); };
+      }` });
+    const views = [];
+    try {
+      for (const state of [a, b]) {
+        await load(state); await clickSquare("b2"); await assertWarnings(state, "b2");
+        for (const position of ["g4", "h4"]) {
+          const html = await evaluate(`document.querySelector('#cell-${at(position)}').outerHTML`);
+          assert.doesNotMatch(html, /rook|pawn|red|black|data-(?:color|type|id)|visibleId|俥|卒/);
+          assert.equal(await evaluate(`document.querySelector('#cell-${at(position)}').getAttribute('aria-label')`), `Quân úp tại ${position}`);
+        }
+        const before = await dom(), notice = await text("#chase-status");
+        await clickSquare("c2");
+        await assertBoard(applyAction(state, 0, chaseLoop[0]).state);
+        views.push({ before, notice, after: await dom(), fault: await text("#chase-status"), event: await text("#action-feedback") });
+        assert.deepEqual(await evaluate("window.testConsoleCalls"), []);
+        assert.equal(await evaluate("['privateState', 'publicState', 'chaseFaults', 'runs', 'positionLastPlies', 'quietDrawHold'].some(name => name in window)"), false);
+      }
+      assert.deepEqual(views[0], views[1]);
+    } finally { await send("Page.removeScriptToEvaluateOnNewDocument", { identifier }); }
+  });
+
+  await t.test("Warning lỗi 2 và hai hoãn hòa: 16 bố cục, tương phản/focus/quân tròn/tọa độ, không che/tràn", async () => {
+    const initial = chaseStart(); initial.noProgressPly = 59; // Explicit boundary counter.
+    const state = advanceChase(initial, 26);
+    await load(state); await clickSquare("c2");
+    const notice = await text("#chase-status"), statusText = await text("#game-status");
+    for (const [width, height] of [[320, 568], [390, 844], [768, 1024], [1280, 800]]) {
+      for (const theme of ["light", "dark"]) for (const orientation of ["horizontal", "vertical"]) {
+        await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
+        await click(`button[data-theme=${theme}]`); await click(`button[data-orientation=${orientation}]`);
+        await evaluate("document.querySelector('#cell-9').focus()");
+        await key("Tab", "Tab", 9); // Focus source c2 without changing selection/state.
+        await assertWarnings(state, "c2");
+        assert.equal(await text("#chase-status"), notice);
+        assert.equal(await text("#game-status"), statusText);
+        await evaluate(`(() => {
+          const ensure = (ok, message) => { if (!ok) throw new Error(message); };
+          const region = document.querySelector('#chase-status'), rr = region.getBoundingClientRect();
+          ensure(document.documentElement.scrollWidth <= innerWidth, 'No horizontal overflow with warnings');
+          ensure(rr.width > 0 && rr.left >= 0 && rr.right <= innerWidth && region.scrollHeight <= region.clientHeight + 1, 'Warning text visible, wrapped and unclipped');
+          ensure(region.getAttribute('aria-live') === 'polite' && region.getAttribute('aria-atomic') === 'true', 'Polite atomic warning');
+          const cells = [...document.querySelectorAll('.cell')], rects = cells.map(c => c.getBoundingClientRect());
+          const xs = [...new Set(rects.map(r => Math.round(r.left)))].sort((a,b) => a-b);
+          const ys = [...new Set(rects.map(r => Math.round(r.top)))].sort((a,b) => a-b);
+          const vertical = document.querySelector('#board').dataset.orientation === 'vertical';
+          cells.forEach((cell, i) => {
+            const r = rects[i], p = cell.firstElementChild.getBoundingClientRect();
+            ensure(cell === window.originalCells[i], 'Stable cell identity');
+            ensure(Math.abs(p.width - p.height) < 1 && p.width >= r.width * .65, 'Round, full-size piece');
+            ensure(Math.round(r.left) === xs[vertical ? Math.floor(i/8) : i%8] && Math.round(r.top) === ys[vertical ? i%8 : 3-Math.floor(i/8)], 'a1-h4 mapping unchanged');
+            const marker = cell.querySelector('.chase-marker');
+            if (marker) { const m = marker.getBoundingClientRect(); ensure(m.width >= 12 && m.left >= r.left && m.right <= r.right && m.top >= r.top && m.bottom <= r.bottom, 'Visible ! stays inside target'); }
+          });
+          const luminance = c => c.match(/[\\d.]+/g).slice(0,3).map(Number).map(v => v/255 <= .04045 ? v/255/12.92 : ((v/255+.055)/1.055)**2.4).reduce((sum,v,i) => sum+v*[.2126,.7152,.0722][i],0);
+          const contrast = (a,b) => (Math.max(luminance(a),luminance(b))+.05)/(Math.min(luminance(a),luminance(b))+.05);
+          const rs = getComputedStyle(region), ms = getComputedStyle(document.querySelector('.chase-marker'));
+          ensure(contrast(rs.color,rs.backgroundColor) >= 4.5 && contrast(ms.color,ms.backgroundColor) >= 4.5, 'Warning and ! contrast >=4.5');
+          ensure(getComputedStyle(document.activeElement).outlineWidth === '3px', 'Keyboard focus visible');
+        })()`);
+        await browser.screenshot(`chase-${width}-${height}-${theme}-${orientation}`);
+      }
+    }
+    // Presentation changes did not reset fault/hold/count: this is still fault 2.
+    await clickSquare("b2");
+    await assertBoard(applyAction(state, 0, chaseLoop[2]).state);
+    assert.match(await text("#game-status"), /Người 2 \(Đen\) thắng.*hai lỗi trường tróc/);
+    t.diagnostic(`Ảnh cảnh báo R2-03B: ${browser.output}`);
   });
 
   const visual = fixture({ a1: piece("red", "rook"), b1: piece("black", "pawn"), c1: piece("red", "general"), d1: piece("black", "general"), e1: piece("red", "advisor"), f1: piece("black", "advisor"), g1: piece("red", "elephant"), h1: piece("black", "elephant"), b2: piece("red", "horse"), c2: piece("black", "horse"), d2: piece("red", "cannon"), e2: piece("black", "cannon"), f2: piece("red", "pawn"), g2: piece("black", "rook"), h2: piece("black", "horse", true), h4: piece("red", "pawn", true) });

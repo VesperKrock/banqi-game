@@ -16,8 +16,10 @@ module.exports = async function launchChrome({ suite = "regression" } = {}) {
   ].find((candidate) => candidate && fs.existsSync(candidate));
   if (!executable) throw new Error("Chrome chưa có: đặt CHROME_PATH; không tự cài trình duyệt.");
   const root = path.resolve(__dirname, "../..");
-  const output = path.join(root, ".local-qa/r2-01", suite);
-  fs.mkdirSync(output, { recursive: true });
+  const suiteOutput = path.join(root, ".local-qa/r2-01", suite);
+  fs.mkdirSync(suiteOutput, { recursive: true });
+  // Keep earlier QA evidence intact instead of overwriting screenshots/reports.
+  const output = fs.mkdtempSync(path.join(suiteOutput, "run-"));
   const profile = fs.mkdtempSync(path.join(output, "profile-"));
   const server = await startServer();
   const browser = spawn(executable, ["--headless=new", "--disable-gpu", "--no-first-run",

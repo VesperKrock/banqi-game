@@ -11,9 +11,16 @@ const REASONS = {
   no_legal_actions: "đối phương hết nước hợp lệ",
   threefold_repetition: "lặp thế cờ 3 lần",
   no_progress_60: "60 nửa-lượt không lật hoặc ăn quân",
+  chase_technical_fouls: "hai lỗi trường tróc (2/2)",
 };
 const coordinate = (index) => `${"abcdefgh"[index % 8]}${Math.floor(index / 8) + 1}`;
 const pieceName = (piece) => `${NAMES[piece.type]} ${COLORS[piece.color]}`;
+const playerName = (snapshot, player) => `Người ${player + 1}${snapshot.playerColors[player] ? ` (${COLORS[snapshot.playerColors[player]]})` : ""}`;
+
+function warningText(snapshot, warning) {
+  const { action, player, nextFault, losesGame } = warning;
+  return `${action.from}–${action.to}: lỗi ${nextFault}/2${losesGame ? " và xử thua" : ""} cho ${playerName(snapshot, player)}.`;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   // Only this controller owns private state. Never attach it to window or DOM,
@@ -27,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("game-status");
   const players = document.getElementById("player-colors");
   const feedback = document.getElementById("action-feedback");
+  const chaseStatus = document.getElementById("chase-status");
 
   function say(message) {
     // Replace one short message; repeated invalid clicks do not spam live regions.
@@ -36,12 +44,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Rendering accepts only an allowlisted public snapshot and public actions.
   function render(snapshot, actions) {
     const destinations = new Set(actions.filter((action) => action.type === "move" && action.from === selected).map((action) => action.to));
+    // Forecasts are supplied by the engine. Selection only filters their display.
+    const warnings = snapshot.chase.warnings.filter((warning) => selected === null || warning.action.from === selected);
+    const warnedTargets = new Map(selected === null ? [] : warnings.map((warning) => [warning.action.to, warning]));
     cells.forEach((cell, index) => {
       const at = coordinate(index), piece = snapshot.board[index];
       const face = cell.firstElementChild;
       cell.classList.toggle("is-selected", selected === at);
       cell.classList.toggle("can-move", destinations.has(at) && piece === null);
       cell.classList.toggle("can-capture", destinations.has(at) && piece !== null);
+      const warning = warnedTargets.get(at);
+      cell.classList.toggle("chase-warning", Boolean(warning));
       cell.setAttribute("aria-pressed", String(selected === at));
       cell.setAttribute("aria-disabled", String(snapshot.status === "finished"));
       // Hidden pieces never enter the color/type branch, including attributes.
@@ -59,15 +72,52 @@ document.addEventListener("DOMContentLoaded", () => {
         face.classList.add(`piece-${piece.color}`);
         label = `${pieceName(piece)} tại ${at}${destinations.has(at) ? ", có thể ăn" : ""}`;
       }
+      let marker = cell.querySelector(".chase-marker");
+      if (warning) {
+        if (!marker) {
+          marker = document.createElement("span");
+          marker.className = "chase-marker";
+          marker.setAttribute("aria-hidden", "true");
+          marker.textContent = "!";
+          cell.append(marker);
+        }
+        label += `. Cảnh báo trường tróc: ${warningText(snapshot, warning)}`;
+        cell.setAttribute("aria-describedby", "chase-status");
+      } else {
+        marker?.remove();
+        cell.removeAttribute("aria-describedby");
+      }
       cell.title = label;
       cell.setAttribute("aria-label", label);
     });
     players.textContent = snapshot.playerColors.map((color, player) => `Người ${player + 1}: ${COLORS[color] || "chưa phân màu"}`).join(" · ");
     const result = snapshot.result;
-    const message = result
+    const message = result?.reason === "chase_technical_fouls"
+      ? `${playerName(snapshot, result.winner)} thắng — ${playerName(snapshot, 1 - result.winner)} thua do ${REASONS[result.reason]}.`
+      : result
       ? `${result.outcome === "win" ? `Người ${result.winner + 1} thắng` : "Hòa"} — ${REASONS[result.reason]}.`
       : `Lượt Người ${snapshot.turn + 1}${snapshot.playerColors[snapshot.turn] ? ` · ${COLORS[snapshot.playerColors[snapshot.turn]]}` : " · Lật quân đầu để phân màu"}`;
     if (status.textContent !== message) status.textContent = message;
+    const notices = [];
+    snapshot.chase.faults.forEach((faults, player) => {
+      if (faults) notices.push(`${playerName(snapshot, player)}: lỗi trường tróc ${faults}/2.${snapshot.status === "playing" ? " Ván tiếp tục; thêm một lỗi sẽ thua." : ""}`);
+    });
+    if (snapshot.status === "playing") {
+      snapshot.chase.runs.forEach((runs, player) => {
+        for (const run of runs) if (run.count >= 5) {
+          notices.push(`${playerName(snapshot, player)} đã đuổi cùng quân ${run.count}/6 (${run.attackerAt} → ${run.targetAt}).`);
+        }
+      });
+      for (const deferred of snapshot.chase.drawDeferred) {
+        notices.push(deferred.reason === "threefold_repetition"
+          ? `Chưa hòa lặp 3 lần: ${playerName(snapshot, deferred.player)} đang liên tục đuổi cùng quân.`
+          : `Chưa hòa sau ${snapshot.noProgressPly} nửa-lượt: ${playerName(snapshot, deferred.player)} còn đuổi ${deferred.pairs.map((pair) => `${pair.attackerAt} → ${pair.targetAt}`).join(", ")}. Dừng mọi cặp này bằng nước đi vào ô trống sẽ hòa.`);
+      }
+      for (const warning of warnings) notices.push(`Cảnh báo ${warningText(snapshot, warning)}`);
+    }
+    const chaseMessage = notices.join("\n");
+    // A separate live region survives say(); unchanged rendering is silent.
+    if (chaseStatus.textContent !== chaseMessage) chaseStatus.textContent = chaseMessage;
   }
 
   function refresh() {

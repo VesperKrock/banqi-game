@@ -1,4 +1,4 @@
-// R2-03A: core rules, outcomes and public-information chase adjudication.
+// R2-03C: core rules, chase adjudication and clean repetition phases.
 // See docs/RULES.md for the state contract and the chosen Banqi variant.
 const COLUMNS = 8;
 const ROWS = 4;
@@ -34,6 +34,14 @@ function positionKey(publicState) {
   const board = publicState.board.map((piece) => piece === null ? null
     : piece.faceDown ? "?" : [piece.color, piece.type]);
   return JSON.stringify([board, publicState.turn, publicState.playerColors]);
+}
+
+// Three timestamps suffice for adjudication; lifetime frequencies remain intact.
+// Until the first phase boundary, preserve legacy R1 frequency-only histories.
+function drawRepetitionCount(state, key) {
+  const start = state.repetitionEpochStart ?? 0;
+  return start === 0 ? Math.min(state.positionCounts?.[key] ?? 1, 3)
+    : (state.positionLastPlies?.[key] ?? []).filter((ply) => ply >= start).length;
 }
 
 /** Creates PRIVATE state. random() must supply independent uniform values in [0, 1). */
@@ -88,7 +96,9 @@ function publicPosition(privateState) {
     result: resultInfo(privateState.result),
     noProgressPly: privateState.noProgressPly ?? 0,
   };
-  snapshot.repetitionCount = privateState.positionCounts?.[positionKey(snapshot)] ?? 1;
+  const key = positionKey(snapshot);
+  snapshot.repetitionCount = privateState.positionCounts?.[key] ?? 1;
+  snapshot.drawRepetitionCount = drawRepetitionCount(privateState, key);
   return snapshot;
 }
 
@@ -109,12 +119,22 @@ function cloneChase(state) {
   const ply = state.ply ?? 0;
   const positionLastPlies = Object.fromEntries(Object.entries(state.positionLastPlies ?? {})
     .map(([key, plies]) => [key, [...plies]]));
-  positionLastPlies[positionKey(publicPosition(state))] ??= [ply];
+  const snapshot = publicPosition(state);
+  positionLastPlies[positionKey(snapshot)] ??= [ply];
+  // An older R2-03A state can prove a pending deferral at its current position.
+  // Do not reconstruct an unrecorded past segment from frequencies alone.
+  const repetitionChase = state.repetitionChase === undefined && snapshot.status !== "finished" && snapshot.drawRepetitionCount >= 3
+    ? repetitionChaser({ positionLastPlies, runs: state.runs ?? [[], []] }, snapshot)
+    : state.repetitionChase;
   return {
     ply, visibleIds, nextVisibleId: state.nextVisibleId ?? nextId,
     runs: (state.runs ?? [[], []]).map((runs) => runs.map((run) =>
       ({ ...pairInfo(run), count: run.count, startPly: run.startPly }))),
     chaseFaults: [...(state.chaseFaults ?? [0, 0])], positionLastPlies,
+    repetitionEpochStart: state.repetitionEpochStart ?? 0,
+    repetitionChase: repetitionChase == null ? null : {
+      player: repetitionChase.player, pairs: repetitionChase.pairs.map(pairInfo),
+    },
     quietDrawHold: state.quietDrawHold == null ? null : {
       player: state.quietDrawHold.player, pairs: state.quietDrawHold.pairs.map(pairInfo),
     },
@@ -136,7 +156,7 @@ export function getPublicState(privateState) {
   const drawDeferred = [];
   if (snapshot.status !== "finished") {
     const repetition = repetitionChaser(chase, snapshot);
-    if (snapshot.repetitionCount >= 3 && repetition !== null) {
+    if (snapshot.drawRepetitionCount >= 3 && repetition !== null) {
       drawDeferred.push({ reason: "threefold_repetition", player: repetition.player,
         pairs: repetition.pairs.map((pair) => locatedPair(pair, chase.visibleIds)) });
     }
@@ -320,9 +340,21 @@ function updateOutcome(state, player, event) {
       if (releasedHold) state.quietDrawHold = null;
     }
   }
+  // Only ending a segment that actually deferred threefold starts a new phase.
+  // A fleeing quiet reply carries the attacker's runs; a first fault keeps pairs.
+  if (state.repetitionChase !== null) {
+    const pending = state.repetitionChase;
+    pending.pairs = pending.pairs.filter((pair) => state.runs[pending.player].some((run) => samePair(pair, run)));
+    if (pending.pairs.length === 0) {
+      state.repetitionEpochStart = state.ply;
+      state.repetitionChase = null;
+    }
+  }
   const key = positionKey(snapshot);
   state.positionCounts[key] = (state.positionCounts[key] ?? 0) + 1;
   state.positionLastPlies[key] = [...(state.positionLastPlies[key] ?? []), state.ply].slice(-3);
+  const repeats = drawRepetitionCount(state, key) >= 3;
+  const repetition = repeats ? repetitionChaser(state, snapshot) : null;
 
   const opponentColor = state.playerColors[state.turn];
   if (state.chaseFaults[player] >= 2) {
@@ -331,7 +363,7 @@ function updateOutcome(state, player, event) {
     state.result = { outcome: "win", winner: player, reason: "all_pieces_captured" };
   } else if (getLegalActions(snapshot, state.turn).length === 0) {
     state.result = { outcome: "win", winner: player, reason: "no_legal_actions" };
-  } else if (state.positionCounts[key] >= 3 && repetitionChaser(state, snapshot) === null) {
+  } else if (repeats && repetition === null) {
     state.result = { outcome: "draw", winner: null, reason: "threefold_repetition" };
   } else if (state.noProgressPly >= 60) {
     const chasers = [0, 1].filter((p) => state.runs[p].length > 0);
@@ -343,6 +375,9 @@ function updateOutcome(state, player, event) {
     }
   }
   if (state.result !== null) state.status = "finished";
+  else if (repetition !== null && state.repetitionChase === null) {
+    state.repetitionChase = { player: repetition.player, pairs: repetition.pairs.map(pairInfo) };
+  }
 }
 
 /** Success contains PRIVATE state and a separate public event. Errors contain no state. */

@@ -1,6 +1,6 @@
-# R1–R2-03A — Luật và API engine Banqi
+# R1–R2-03C — Luật và API engine Banqi
 
-Trạng thái: `js/engine.mjs` có luật lật/đi/ăn, thắng/hòa và **trường tróc R2-03A theo ba quyết định đã duyệt**. Offline R2-01 đang dùng bốn API này. R2-03A chỉ đổi engine, unit test và tài liệu; **chưa nối cảnh báo/lỗi/lý do thua trường tróc vào UI** (R2-03B). Không gồm Online, Bot, xin hòa/chịu thua hoặc đồng hồ.
+Trạng thái: `js/engine.mjs` giữ luật lật/đi/ăn, thắng/hòa và trường tróc R2-03A; **R2-03C bổ sung giai đoạn xét lặp mới khi đoạn đuổi từng hoãn hòa chấm dứt**. UI R2-03B đã hiển thị cảnh báo/lỗi/kết quả; R2-03C không sửa UI. Không gồm Online, Bot, xin hòa/chịu thua hoặc đồng hồ.
 
 ## Nguồn và lựa chọn biến thể
 
@@ -17,6 +17,8 @@ Các quyết định sản phẩm theo prompt, khác với chi tiết giải đ�
 Các đoạn PDF 2008 ở trên lưu chứng cứ lịch sử R1. R2-02 đã đọc [Hsu 06/09/2019](https://homepage.iis.sinica.edu.tw/~tshsu/tcg/2021/hwks/rules.pdf) (60 nước đơn, lặp ba lần; không định nghĩa đuổi 6/7), [điều lệ Nam Đầu 16/05/2026](https://www.beclass.com/rid=305263a69d8d7bd3878f) (một quân đuổi cùng quân: lần 7 lỗi kỹ thuật, hai lỗi thua, `必死除外`) và [Mistboard](https://mistboard.com/rules/banqi) bản cập nhật 07/11/2026 (cấm nước đuổi tạo lặp ba, có ngoại lệ). Chi tiết và giới hạn nguồn ở [CHASE_RULE_DESIGN.md](CHASE_RULE_DESIGN.md), mục A.
 
 Banqi Game dùng **house adjudication dựa trên Nam Đầu 2026**, đã duyệt trong R2-03A: mốc 7/2 theo nguồn; cách giữ nước sau lỗi, ngoại lệ một ply, cảnh báo và tương tác hòa là quy ước sản phẩm. Không gọi đây là luật quốc tế, không nhập quy trình hòa 25 vòng của giải hoặc cơ chế cấm nước của Mistboard.
+
+R2-03C điều chỉnh riêng cách dùng lịch sử để xét hòa sau khi ngắt đoạn đuổi từng hoãn hòa, theo prompt sản phẩm. Đây cũng là house adjudication, không gán cho các nguồn giải đấu.
 
 ## Bộ luật thực thi theo R1-01
 
@@ -51,7 +53,7 @@ Quân cùng cấp được ăn nhau, riêng Pháo phải dùng quy tắc ngòi. 
 - Khi đủ điều kiện, Pháo ăn mọi cấp, gồm Tướng và Pháo khác. Không ngòi hoặc từ hai ngòi trở lên đều không hợp lệ.
 - Không ăn kề, ăn chéo, ăn quân úp/đồng minh hoặc nhảy qua ngòi vào ô trống. Ngòi không bị thay đổi khi Pháo ăn. Một lần ăn kết thúc lượt, không ăn liên hoàn.
 
-## Kết thúc ván và hòa — R1-02, mở rộng R2-03A
+## Kết thúc ván và hòa — R1-02, mở rộng R2-03A/R2-03C
 
 Chỉ xét sau một hành động hợp lệ, sau khi đã cập nhật bàn và chuyển lượt. Khi nhiều điều kiện cùng đúng, chọn đúng một kết quả theo thứ tự:
 
@@ -60,7 +62,7 @@ Chỉ xét sau một hành động hợp lệ, sau khi đã cập nhật bàn v�
 | 1 | Người vừa đi nhận lỗi trường tróc thứ hai | `win` | `1 - người vừa đi` | `chase_technical_fouls` |
 | 2 | Đối phương không còn quân nào trên bàn, kể cả úp (đủ 16 quân đã bị ăn trong ván bình thường) | `win` | Người vừa đi | `all_pieces_captured` |
 | 3 | Người đến lượt không có bất kỳ flip/move/capture cơ bản hợp lệ | `win` | Người vừa đi | `no_legal_actions` |
-| 4 | Thế cờ xuất hiện ít nhất ba lần, không đúng một bên đuổi liên tục trên cả cửa sổ C2 | `draw` | `null` | `threefold_repetition` |
+| 4 | Thế cờ xuất hiện ít nhất ba lần **trong giai đoạn xét hòa hiện tại**, không đúng một bên đuổi liên tục trên cả cửa sổ C2 | `draw` | `null` | `threefold_repetition` |
 | 5 | Đạt 60 ply và không giữ hoãn theo C3, hoặc hold vừa được giải phóng bằng nước yên | `draw` | `null` | `no_progress_60` |
 
 Mất Tướng không tự thua. Không có chiếu/chiếu bí, hòa stalemate hoặc hòa thiếu lực lượng. Còn một ô úp bất kỳ vẫn có nước lật nên không thua vì hết hành động; điều này không ngăn thắng do toàn bộ quân địch đã bị ăn nếu các ô úp còn lại đều thuộc bên thắng.
@@ -79,7 +81,11 @@ Không đưa danh tính/ID quân úp, seed RNG, theme/hướng bàn, thời gian
 
 Vị trí khởi tạo được ghi một lần. Sau mỗi hành động hợp lệ, ghi vị trí mới đúng một lần, dù các lần xuất hiện không liên tiếp hoặc đi qua các chuỗi nước khác nhau. `positionCounts` giữ tần suất; `positionLastPlies[key]` giữ tối đa ba ply xuất hiện gần nhất. Hai bảng được giữ qua lật/ăn; các vị trí cũ không thể quay lại sau đó vì số ô úp hoặc tổng quân trên bàn giảm.
 
-Ở lần thứ ba trở đi, lấy `i < j < k` gần nhất. Trong cửa sổ `(i, k]`, lượt riêng đầu của p là `i+1` nếu p là người đến lượt tại thế lặp, ngược lại `i+2`. p chịu trách nhiệm nếu có run cùng cặp với `startPly <= lượt riêng đầu <= k`. Đúng một bên thỏa thì hoãn hòa lặp và xét tiếp 60; cả hai hoặc không bên nào thỏa thì hòa. Nước chạy của đối phương giữ run bên đuổi đến lượt riêng tiếp theo; lỗi đầu giữ `startPly`. Không quy lỗi cho người chạy tạo thế lặp. Ở thế mới không lặp, không lưu một “khoản nợ hòa” từ thế cũ.
+Ở lần thứ ba trở đi **đủ điều kiện trong giai đoạn hiện tại**, lấy `i < j < k` gần nhất. Trong cửa sổ `(i, k]`, lượt riêng đầu của p là `i+1` nếu p là người đến lượt tại thế lặp, ngược lại `i+2`. p chịu trách nhiệm nếu có run cùng cặp với `startPly <= lượt riêng đầu <= k`. Đúng một bên thỏa thì hoãn hòa lặp và xét tiếp 60; cả hai hoặc không bên nào thỏa thì hòa. Nước chạy của đối phương giữ run bên đuổi đến lượt riêng tiếp theo; lỗi đầu giữ `startPly`. Không quy lỗi cho người chạy tạo thế lặp. Ở thế mới không lặp, không lưu một “khoản nợ hòa” từ thế cũ.
+
+**Giai đoạn mới R2-03C:** chỉ khi một đoạn đuổi đã thực sự làm hoãn hòa lặp, lưu người/các cặp làm căn cứ trong `repetitionChase`. Các nước sau chỉ giữ giao các cặp này với runs còn liên tục, không thêm cặp mới. Khi hết mọi cặp (đi quân khác, đổi toàn bộ mục tiêu, không còn đe dọa đủ điều kiện, hoặc ăn/lật ngắt runs), đặt `repetitionEpochStart` bằng ply vừa thực hiện. Vị trí sau chính nước ngắt được tính là lần đầu của giai đoạn mới. Các lần trước mốc đó không góp vào hòa mới, nhưng bảng tần suất và ba mốc gần nhất **không bị xóa**.
+
+Mất một cặp khi cặp căn cứ khác vẫn nối không mở giai đoạn. Một đe dọa thoáng qua chưa từng hoãn hòa cũng không mở giai đoạn: giữ quy tắc hòa thông thường và hai bên cùng đuổi. Lỗi đầu giữ cặp/start nên không đổi giai đoạn. Quy tắc này chỉ điều chỉnh điều kiện lặp; **không reset quiet ply, lỗi hoặc `quietDrawHold`**. Nếu đã đạt 60, bỏ các cặp hold bằng nước yên vẫn hòa ngay dù cũng mở giai đoạn lặp mới; giữ hold thì cơ chế 7/2 tiếp tục phân xử.
 
 ## Trường tróc — ba quyết định R2-03A đã duyệt
 
@@ -116,13 +122,17 @@ Ngoại lệ `必死除外` của game: chỉ khi không còn quân úp và **kh
   runs: [[], []],            // {attackerId, targetId, count, startPly}
   chaseFaults: [0, 0],
   positionLastPlies: {},     // khóa công khai -> tối đa 3 ply; ván mới có [0]
-  quietDrawHold: null        // hoặc {player, pairs: [{attackerId, targetId}]}
+  quietDrawHold: null,       // hoặc {player, pairs: [{attackerId, targetId}]}
+  repetitionEpochStart: 0,   // ply bắt đầu giai đoạn xét hòa hiện tại
+  repetitionChase: null     // hoặc {player, pairs}; đoạn từng hoãn lặp đang liên tục
 }
 ```
 
 `color` là `red`/`black`; `type` là một trong bảy tên tiếng Anh ở bảng trên. Không lưu seed, RNG, ID bí mật, lịch sử nước đi hoặc thông tin hướng giao diện. Bảng `positionCounts` có giá trị nguyên dương, chỉ chứa khóa từ mặt công khai.
 
-Snapshot public giữ `turn`, bản sao `playerColors` và `captured`, `status`, bản sao `result`, `noProgressPly`, `repetitionCount` (tần suất thật của **vị trí hiện tại**, có thể >=3 khi hoãn). Không công bố `positionCounts`, `positionLastPlies`, `ply`, bộ cấp ID hoặc `startPly`. Quân mở thêm `visibleId`; quân úp giữ nguyên allowlist:
+Snapshot public giữ `turn`, bản sao `playerColors` và `captured`, `status`, bản sao `result`, `noProgressPly`, `repetitionCount` (tần suất thật cả ván của **vị trí hiện tại**). R2-03C thêm **`drawRepetitionCount`**, số lần đủ điều kiện trong giai đoạn hiện tại, chặn trên ở 3 vì chỉ cần phân biệt 0/1/2/đủ 3. `repetitionCount` có thể >=3 trong khi `drawRepetitionCount` mới là 1; chỉ trường thứ hai quyết định xét C2. Trước giai đoạn mới đầu tiên, giữ tương thích tần suất R1; sau đó đếm các mốc `>= repetitionEpochStart` trong ba mốc gần nhất.
+
+Không công bố `positionCounts`, `positionLastPlies`, `ply`, `repetitionEpochStart`, `repetitionChase`, bộ cấp ID hoặc `startPly`. Quân mở thêm `visibleId`; quân úp giữ nguyên allowlist:
 
 | Trạng thái ô | Dữ liệu public |
 | --- | --- |
@@ -146,6 +156,8 @@ chase: {
 `drawDeferred` có 0–2 mục, thứ tự lặp rồi 60, cho phép cùng hoãn cả hai. `pairs` là các cặp chịu trách nhiệm; warning chỉ liệt kê cặp sắp đạt 7. Tọa độ trong runs/deferred thuộc bàn hiện tại; trong warning thuộc bàn giả định **sau action được nêu**. Count 5/6 sẵn có cho UI làm thông báo gần mốc; warning chỉ dành cho action thật sự phát lỗi, có `player`, `nextFault` 1/2 và `losesGame`. `quietRuns` dùng chung cho dự báo và phân xử. Khi finished, warnings/deferred rỗng; faults/runs vẫn cho phép đọc kết quả cuối. Action/event và bốn export không thay đổi.
 
 State legacy thiếu metadata: giữ mặc định R1 (`playing`, `result=null`, quiet 0, tần suất vị trí 1 nếu chưa biết). Với chase, bắt đầu quan sát tại ply 0, runs rỗng, lỗi 0, hold null; cấp ID cho quân đang mở theo index bàn, cấp ID tiếp theo khi lật. Không giả vờ biết thứ tự lật cũ. Bảng tần suất R1 nếu có vẫn được giữ, nhưng chỉ ghi mốc ply hiện tại; thiếu ba mốc thật thì không suy ra trách nhiệm đuổi để hoãn lặp. Vì thế ván legacy có thể hòa theo tần suất cũ. Không khôi phục lịch sử chưa lưu, không phải API nhập ván tùy ý hoặc bypass luật.
+
+State R2-03A thiếu hai trường R2-03C mặc định mốc 0. Nếu **vị trí hiện tại** đủ ba mốc và run chứng minh đang hoãn lặp, engine nhận diện đoạn đó để ghi mốc mới khi nó ngắt. Không suy diễn một đoạn đã ngắt trước khi nhập mà metadata cũ không lưu. Ván mới đặt mốc 0, pending null, hai counter public bằng 1; không phục hồi một ván cũ bị thiếu lịch sử.
 
 ## Bốn API export
 
@@ -204,7 +216,7 @@ Thất bại trả đúng `{ok: false, error}`; không trả state, action gốc
 
 UI/AI tương lai chỉ tiêu thụ snapshot/event công khai. Bộ phận giữ private state mới được gọi `applyAction`. Trong Offline, bí mật vẫn nằm trên máy người chơi; phân tách dữ liệu này **không chống được DevTools**. Online về sau phải giữ private state và xử lý action ở backend; module hiện tại chưa tạo backend hoặc cơ chế chống gian lận qua mạng.
 
-Chưa có xin hòa/đồng ý hòa, chịu thua, đồng hồ/hết giờ, mất kết nối, undo, replay, Bot hoặc networking. Engine đã xử trường tróc nhưng UI R2-01 chưa có cảnh báo/lỗi và chưa ánh xạ `chase_technical_fouls` thành lời giải thích. R2-03A giữ nguyên UI nên lý do mới có thể hiện `undefined` trong dòng kết quả hiện hữu; đây là việc dành cho **R2-03B — nối warning/lỗi/result vào UI, kiểm tra Chrome PC/Mobile**.
+Chưa có xin hòa/đồng ý hòa, chịu thua, đồng hồ/hết giờ, mất kết nối, undo, replay, Bot hoặc networking. UI R2-03B đã hiển thị warning/lỗi/kết quả trường tróc, đọc `drawDeferred` từ engine thay vì tự tính lặp. R2-03C giữ nguyên ý nghĩa các trường UI đang dùng, chỉ thêm counter API nên không cần sửa nhãn/UI. Trạng thái hiện hành ở [SPEC.md](SPEC.md).
 
 ## Chạy kiểm thử
 

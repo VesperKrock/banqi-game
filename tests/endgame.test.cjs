@@ -420,7 +420,7 @@ test("Public sau game over chỉ có trường cho phép, không history/secret/
   state.board[at("h4")].metadata = { secretId: "PRIVATE_ONLY_PIECE" };
   state.positionCounts.PRIVATE_ONLY_HISTORY = 99;
   const view = getPublicState(freeze(state));
-  assert.deepEqual(Object.keys(view).sort(), ["board", "captured", "chase", "noProgressPly", "playerColors", "repetitionCount", "result", "status", "turn"]);
+  assert.deepEqual(Object.keys(view).sort(), ["board", "captured", "chase", "drawRepetitionCount", "noProgressPly", "playerColors", "repetitionCount", "result", "status", "turn"]);
   assert.deepEqual(view.board[at("h4")], { occupied: true, faceDown: true });
   assert.deepEqual(Object.keys(view.result).sort(), ["outcome", "reason", "winner"]);
   assert.doesNotMatch(JSON.stringify(view), /PRIVATE_ONLY|positionCounts|metadata|secretId/);
