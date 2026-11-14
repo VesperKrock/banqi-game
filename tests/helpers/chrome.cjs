@@ -7,7 +7,7 @@ const { spawn } = require("node:child_process");
 const startServer = require("./http.cjs");
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-module.exports = async function launchChrome({ suite = "regression", basePath = "/" } = {}) {
+module.exports = async function launchChrome({ suite = "regression", basePath = "/", cacheAssets = false } = {}) {
   const executable = [process.env.CHROME_PATH,
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
@@ -21,7 +21,7 @@ module.exports = async function launchChrome({ suite = "regression", basePath = 
   // Keep earlier QA evidence intact instead of overwriting screenshots/reports.
   const output = fs.mkdtempSync(path.join(suiteOutput, "run-"));
   const profile = fs.mkdtempSync(path.join(output, "profile-"));
-  const server = await startServer({ basePath });
+  const server = await startServer({ basePath, cacheAssets });
   const browser = spawn(executable, ["--headless=new", "--disable-gpu", "--no-first-run",
     "--no-default-browser-check", "--disable-background-networking", "--remote-debugging-port=0",
     `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore", windowsHide: true });
@@ -118,5 +118,6 @@ module.exports = async function launchChrome({ suite = "regression", basePath = 
   }
 
   return { send, evaluate, navigate, screenshot, close, errors, output, waitForEvent,
-    useGame: server.useGame, useAssetFailure: server.useAssetFailure, assetRequestCounts: server.assetRequestCounts };
+    useGame: server.useGame, useAssetFailure: server.useAssetFailure, assetRequestCounts: server.assetRequestCounts,
+    holdAsset: server.holdAsset };
 };

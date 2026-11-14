@@ -25,9 +25,10 @@ for (const color of ["red", "black"]) for (const type of ["general", "advisor", 
 routes["/assets/pieces/back.svg"] = ["assets/pieces/back.svg", "image/svg+xml"];
 for (const name of ["flip", "move", "capture"]) routes[`/assets/sfx/${name}.mp3`] = [`assets/sfx/${name}.mp3`, "audio/mpeg"];
 
-module.exports = async function startServer({ basePath = "/" } = {}) {
+module.exports = async function startServer({ basePath = "/", cacheAssets = false } = {}) {
   let initialState = null;
   let assetFailure = null;
+  let assetGate = null;
   const assetRequests = {};
   const server = http.createServer((request, response) => {
     const requestedPath = new URL(request.url, "http://localhost").pathname;
@@ -38,11 +39,16 @@ module.exports = async function startServer({ basePath = "/" } = {}) {
     if (!route) return response.writeHead(404).end();
     if (route[1] === "image/svg+xml") {
       assetRequests[pathname] = (assetRequests[pathname] ?? 0) + 1;
+      if (assetGate?.pathname === pathname) {
+        assetGate.responses.push(() => response.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": cacheAssets ? "max-age=60" : "no-store" })
+          .end(fs.readFileSync(path.join(root, route[0]))));
+        return;
+      }
       // Deliberate failures are scoped to this test server, never production.
       if (assetFailure) return response.writeHead(assetFailure === "missing" ? 404 : 200,
         { "Content-Type": "image/svg+xml", "Cache-Control": "no-store" }).end("invalid SVG fixture");
     }
-    response.writeHead(200, { "Content-Type": `${route[1]}; charset=utf-8`, "Cache-Control": "no-store" });
+    response.writeHead(200, { "Content-Type": `${route[1]}; charset=utf-8`, "Cache-Control": cacheAssets && route[1] === "image/svg+xml" ? "max-age=60" : "no-store" });
     if (pathname === "/js/engine.mjs" && initialState !== null) {
       response.end(`export { getPublicState, getLegalActions, applyAction } from './engine-real.mjs';
         import { createGame as realCreateGame } from './engine-real.mjs';
@@ -66,6 +72,14 @@ module.exports = async function startServer({ basePath = "/" } = {}) {
       assetFailure = mode;
     },
     assetRequestCounts: () => ({ ...assetRequests }),
+    holdAsset(pathname) {
+      const gate = { pathname, responses: [] };
+      assetGate = gate;
+      return () => {
+        if (assetGate === gate) assetGate = null;
+        gate.responses.splice(0).forEach((respond) => respond());
+      };
+    },
     close: () => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
   };
 };

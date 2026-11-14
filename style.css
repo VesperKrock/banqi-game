@@ -290,6 +290,18 @@ button:focus-visible, .cell:focus-visible {
   display: none;
 }
 
+/* Pending is a neutral back, including reduced motion and cancelled flips. */
+.piece-pending {
+  width: 94%;
+  border: 0;
+  border-radius: 50%;
+  background: var(--piece-bg) url("./assets/pieces/back.svg") center / contain no-repeat;
+}
+
+.piece-pending .piece-fallback {
+  display: none;
+}
+
 .piece { position: relative; }
 .motion-back {
   position: absolute;

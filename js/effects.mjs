@@ -18,6 +18,7 @@ export function createMotion(board) {
     const animation = element.animate(frames, { duration, easing: "ease-out" });
     run.animations.push(animation);
     animation.onfinish = () => { if (active === run) done(); };
+    return animation;
   }
   // Called after validation, before the public board is rendered at its new position.
   function prepare(action) {
@@ -25,7 +26,7 @@ export function createMotion(board) {
     const cell = cellAt(action.at ?? action.from);
     return { rect: cell.getBoundingClientRect(), back: action.type === "flip" ? cell.firstElementChild.cloneNode(true) : null };
   }
-  function play(event, before) {
+  function play(event, before, faceReady = Promise.resolve()) {
     cancel();
     if (!before || reduced.matches) return;
     const cell = cellAt(event.at ?? event.to), face = cell.firstElementChild;
@@ -37,16 +38,22 @@ export function createMotion(board) {
       back.classList.add("motion-back");
       face.style.visibility = "hidden";
       cell.append(back);
-      animate(run, back, [
+      const closing = animate(run, back, [
         { transform: "translate(-50%, -50%) perspective(500px) rotateY(0deg)" },
         { transform: "translate(-50%, -50%) perspective(500px) rotateY(90deg)" },
       ], 110, () => {
-        back.remove();
-        face.style.removeProperty("visibility");
-        animate(run, face, [
-          { transform: "perspective(500px) rotateY(-90deg)" }, { transform: "perspective(500px) rotateY(0deg)" },
-        ], 110, cancel);
+        faceReady.then(() => {
+          if (active !== run) return;
+          back.remove();
+          face.style.removeProperty("visibility");
+          animate(run, face, [
+            { transform: "perspective(500px) rotateY(-90deg)" }, { transform: "perspective(500px) rotateY(0deg)" },
+          ], 110, cancel);
+        });
       });
+      // Hold the actual back at the start until the new face is decoded (or failed).
+      closing.pause();
+      faceReady.then(() => { if (active === run && closing.playState === "paused") closing.play(); });
     } else {
       const after = cell.getBoundingClientRect();
       face.style.zIndex = "1";

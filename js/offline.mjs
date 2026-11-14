@@ -21,6 +21,21 @@ const movementRule = "Đi một ô ngang/dọc vào ô trống, không đi chéo
 const ruleText = (type) => movementRule + (type === "cannon" ? RULES[type] : "Ăn quân đã lật ở ô liền kề ngang/dọc. " + RULES[type]);
 const PIECE_IMAGES = Object.fromEntries(Object.entries(SYMBOLS).map(([color, pieces]) =>
   [color, Object.fromEntries(Object.keys(pieces).map((type) => [type, `./assets/pieces/${color}/${type}.svg`]))]));
+const BACK_IMAGE = "./assets/pieces/back.svg";
+const faceReady = new WeakMap();
+// Bound both loading and decoding; a late success must not replace a fallback.
+function decodedWithin(work) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), 2500);
+    work.then(() => { clearTimeout(timer); resolve(true); }, () => { clearTimeout(timer); resolve(false); });
+  });
+}
+// Only the 15 public templates, never identities/positions from a game.
+const preparedImages = new Map([BACK_IMAGE, ...Object.values(PIECE_IMAGES).flatMap(Object.values)].map((source) => {
+  const image = new Image();
+  image.src = source;
+  return [source, { image, ready: decodedWithin(image.decode()) }];
+}));
 const REASONS = {
   all_pieces_captured: "đối phương hết quân",
   no_legal_actions: "đối phương hết nước hợp lệ",
@@ -44,10 +59,11 @@ function renderFace(face, piece, destination) {
     face.textContent = destination ? "·" : "";
     return;
   }
-  const source = piece.faceDown ? "./assets/pieces/back.svg" : PIECE_IMAGES[piece.color][piece.type];
+  const source = piece.faceDown ? BACK_IMAGE : PIECE_IMAGES[piece.color][piece.type];
   // Keep loaded/failed images on selection changes; an error never retries itself.
   if (face.querySelector("img")?.getAttribute("src") === source) return;
   face.className = piece.faceDown ? "piece" : `piece piece-${piece.color}`;
+  face.classList.add("piece-pending");
   const fallback = document.createElement("span");
   fallback.className = "piece-fallback";
   fallback.textContent = piece.faceDown ? "?" : SYMBOLS[piece.color][piece.type];
@@ -58,14 +74,16 @@ function renderFace(face, piece, destination) {
   image.draggable = false;
   image.width = 256;
   image.height = 256;
-  image.addEventListener("load", () => {
-    if (image.parentElement === face) face.classList.add("piece-svg");
-  }, { once: true });
-  image.addEventListener("error", () => {
-    if (image.parentElement === face) face.classList.remove("piece-svg");
-  }, { once: true });
   face.replaceChildren(fallback, image);
   image.src = source;
+  const ready = decodedWithin(Promise.all([preparedImages.get(source).ready.then((ok) => {
+    if (!ok) throw new Error("SVG unavailable");
+  }), image.decode()])).then((ok) => {
+    if (image.parentElement !== face) return;
+    face.classList.toggle("piece-svg", ok);
+    face.classList.remove("piece-pending");
+  });
+  faceReady.set(face, ready);
 }
 
 function createReference() {
@@ -267,7 +285,9 @@ document.addEventListener("DOMContentLoaded", () => {
     hasPlayed = true;
     refresh();
     const event = result.event;
-    motion.play(event, before);
+    const target = event.at ?? event.to;
+    const targetFace = cells[(Number(target[1]) - 1) * 8 + "abcdefgh".indexOf(target[0])].firstElementChild;
+    motion.play(event, before, faceReady.get(targetFace));
     sound.play(event);
     say(event.type === "flip"
       ? `Người ${event.player + 1} lật ${pieceName(event.piece)} tại ${event.at}.`
