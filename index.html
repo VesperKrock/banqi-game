@@ -13,46 +13,79 @@
   </head>
   <body>
     <main>
-      <header>
-        <p class="eyebrow">Cờ tướng lật</p>
-        <div class="header-toolbar">
-          <h1>Banqi</h1>
+      <header class="app-header">
+        <h1>Banqi</h1>
+        <p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">Đang mở ván…</p>
+        <div class="game-actions">
+          <button type="button" id="sound-toggle" aria-pressed="false" disabled>Âm thanh: Không khả dụng</button>
           <div class="theme-controls" role="group" aria-label="Giao diện sáng/tối">
             <button type="button" data-theme="light" aria-pressed="false"><span class="selection-mark" aria-hidden="true">✓</span>Sáng</button>
             <button type="button" data-theme="dark" aria-pressed="false"><span class="selection-mark" aria-hidden="true">✓</span>Tối</button>
           </div>
+          <button type="button" id="new-game">Ván mới</button>
         </div>
-        <p class="notice">Offline · Hai người cùng máy</p>
-        <p>Lật một quân hoặc chọn quân của mình để đi / ăn. Hai người thay phiên trên cùng thiết bị.</p>
-        <div class="game-toolbar">
-          <p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">Đang mở ván…</p>
-          <div class="game-actions">
-            <button type="button" id="sound-toggle" aria-pressed="false" disabled>Âm thanh: Không khả dụng</button>
-            <button type="button" id="new-game">Ván mới</button>
-          </div>
+        <div class="orientation-controls" role="group" aria-label="Hướng bàn cờ">
+          <button type="button" data-orientation="auto" aria-pressed="true" aria-controls="board"><span class="selection-mark" aria-hidden="true">✓</span>Tự động</button>
+          <button type="button" data-orientation="horizontal" aria-pressed="false" aria-controls="board"><span class="selection-mark" aria-hidden="true">✓</span>Ngang</button>
+          <button type="button" data-orientation="vertical" aria-pressed="false" aria-controls="board"><span class="selection-mark" aria-hidden="true">✓</span>Dọc</button>
         </div>
-        <p id="player-colors">Người 1: chưa phân màu · Người 2: chưa phân màu</p>
-        <div id="chase-status" class="chase-status" role="status" aria-live="polite" aria-atomic="true"></div>
       </header>
 
-      <section aria-labelledby="board-heading">
-        <div class="board-toolbar">
-          <h2 id="board-heading">Bàn cờ</h2>
-          <div class="orientation-controls" role="group" aria-label="Hướng bàn cờ">
-            <button type="button" data-orientation="horizontal" aria-pressed="true" aria-controls="board"><span class="selection-mark" aria-hidden="true">✓</span>Ngang</button>
-            <button type="button" data-orientation="vertical" aria-pressed="false" aria-controls="board"><span class="selection-mark" aria-hidden="true">✓</span>Dọc</button>
+      <div class="game-layout">
+        <aside class="piece-reference" id="reference-red" aria-label="Tra cứu quân Đỏ">
+          <h2>Quân Đỏ</h2><p>Tra cứu luật</p><div class="reference-list"></div>
+        </aside>
+        <section class="play-area" aria-labelledby="board-heading">
+          <h2 id="board-heading" class="sr-only">Bàn cờ</h2>
+          <div class="board-toolbar">
+            <p id="board-status" class="board-status">Ngang · 8 cột × 4 hàng</p>
+            <div class="board-tools">
+              <button type="button" id="rules-toggle" popovertarget="rules-panel">Luật quân</button>
+              <button type="button" popovertarget="help-panel" aria-label="Trợ giúp cách chơi">Trợ giúp</button>
+              <button type="button" id="result-toggle" hidden>Xem kết quả</button>
+            </div>
+            <p id="turn-toast" class="turn-toast" aria-hidden="true" hidden></p>
           </div>
-        </div>
-        <p id="board-status" class="board-status" role="status">Ngang · 8 cột × 4 hàng</p>
-        <div id="board-shell" class="board-shell" data-orientation="horizontal">
-          <div id="axis-left" class="axis axis-left" aria-hidden="true"></div>
-          <div id="board" class="board" data-orientation="horizontal" aria-label="Bàn cờ 32 ô, tọa độ a1 đến h4" role="group"></div>
-          <div id="axis-bottom" class="axis axis-bottom" aria-hidden="true"></div>
-        </div>
-        <p id="action-feedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true">Mở trang qua Live Server / HTTP để chơi.</p>
-        <p class="board-help">Ô có dấu ·: đi được; viền nét đứt: ăn được; dấu !: nước sẽ phạm lỗi trường tróc. Bấm lại quân để bỏ chọn. Tab rồi Enter / Space để thao tác. Tọa độ a1–h4 giữ nguyên khi đổi hướng.</p>
-        <noscript><p>Hãy bật JavaScript và mở trang qua HTTP để chơi Offline.</p></noscript>
-      </section>
+          <div id="board-shell" class="board-shell" data-orientation="horizontal">
+            <div id="axis-left" class="axis axis-left" aria-hidden="true"></div>
+            <div id="board" class="board" data-orientation="horizontal" aria-label="Bàn cờ 32 ô, tọa độ a1 đến h4" role="group"></div>
+            <div id="axis-bottom" class="axis axis-bottom" aria-hidden="true"></div>
+          </div>
+          <div class="message-dock">
+            <p id="action-feedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true">Mở trang qua Live Server / HTTP để chơi.</p>
+            <button type="button" id="chase-toggle" aria-expanded="false" aria-controls="chase-panel" hidden>! Trường tróc</button>
+            <div id="chase-panel" class="chase-panel" hidden>
+              <div id="chase-status" class="chase-status" role="status" aria-live="polite" aria-atomic="true"></div>
+            </div>
+          </div>
+          <noscript><p>Hãy bật JavaScript và mở trang qua HTTP để chơi Offline.</p></noscript>
+        </section>
+        <aside class="piece-reference" id="reference-black" aria-label="Tra cứu quân Đen">
+          <h2>Quân Đen</h2><p>Tra cứu luật</p><div class="reference-list"></div>
+        </aside>
+      </div>
     </main>
+    <div id="piece-popover" class="floating-panel" popover role="dialog" aria-labelledby="piece-title">
+      <button type="button" class="close-panel" popovertarget="piece-popover" popovertargetaction="hide" aria-label="Đóng luật quân">Đóng</button>
+      <h2 id="piece-title"></h2><p id="piece-rule"></p>
+    </div>
+    <div id="rules-panel" class="floating-panel" popover role="dialog" aria-labelledby="rules-title">
+      <button type="button" class="close-panel" popovertarget="rules-panel" popovertargetaction="hide" aria-label="Đóng bảng luật quân">Đóng</button>
+      <h2 id="rules-title">Luật quân</h2>
+      <p>Thứ bậc thông thường; Tốt và Pháo có luật ăn riêng. Đây là bảng tra cứu, không phải số quân còn lại.</p>
+      <div id="compact-rules"></div>
+    </div>
+    <div id="help-panel" class="floating-panel" popover role="dialog" aria-labelledby="help-title">
+      <button type="button" class="close-panel" popovertarget="help-panel" popovertargetaction="hide">Đóng</button>
+      <h2 id="help-title">Hai người cùng máy</h2>
+      <p id="player-colors">Người 1: chưa phân màu · Người 2: chưa phân màu</p>
+      <p>Lật một quân hoặc chọn quân của mình để đi / ăn. Quân lật đầu tiên phân màu cho người lật; hai người thay phiên.</p>
+      <p class="board-help">Ô có dấu ·: đi được; viền nét đứt: ăn được; dấu !: nước sẽ phạm lỗi trường tróc. Bấm lại quân để bỏ chọn. Tab rồi Enter / Space để thao tác. Tọa độ a1–h4 giữ nguyên khi đổi hướng.</p>
+      <p>Tự động chọn hướng theo kích thước cửa sổ. Chọn Ngang hoặc Dọc để giữ hướng đến khi chọn Tự động hoặc tải lại trang.</p>
+    </div>
+    <dialog id="result-dialog" class="floating-panel" aria-labelledby="result-title" aria-describedby="result-message">
+      <h2 id="result-title">Ván đã kết thúc</h2><p id="result-message"></p>
+      <div class="dialog-actions"><button type="button" id="result-close" autofocus>Đóng</button><button type="button" id="result-new-game">Ván mới</button></div>
+    </dialog>
   </body>
 </html>

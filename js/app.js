@@ -66,6 +66,38 @@ function createBoard() {
   const status = document.getElementById("board-status");
   const buttons = document.querySelectorAll("button[data-orientation]");
   const cells = [];
+  let mode = "auto";
+  let automatic = null;
+
+  // Hysteresis avoids oscillation near the portrait/landscape boundary.
+  // A narrow desktop window follows the same geometry as a phone.
+  function automaticOrientation() {
+    const ratio = window.innerWidth / window.innerHeight;
+    if (!automatic) automatic = ratio >= 1.1 ? "horizontal" : "vertical";
+    else if (automatic === "vertical" && ratio > 1.15) automatic = "horizontal";
+    else if (automatic === "horizontal" && ratio < 1.05) automatic = "vertical";
+    return automatic;
+  }
+
+  function fitBoard() {
+    const vertical = board.dataset.orientation === "vertical";
+    const columns = vertical ? 4 : 8, rows = vertical ? 8 : 4;
+    const area = document.querySelector(".play-area");
+    const toolbar = document.querySelector(".board-toolbar");
+    const dock = document.querySelector(".message-dock");
+    const sideDock = getComputedStyle(area).getPropertyValue("--side-dock").trim() === "1";
+    const css = getComputedStyle(shell);
+    const gap = parseFloat(css.getPropertyValue("--board-gap"));
+    const padding = parseFloat(css.getPropertyValue("--board-padding")) * 2 + 2;
+    const axisWidth = 26, axisHeight = 30;
+    const width = area.clientWidth - axisWidth - (sideDock ? dock.offsetWidth + 12 : 0);
+    const height = window.innerHeight - toolbar.getBoundingClientRect().bottom - (sideDock ? 0 : dock.offsetHeight) - axisHeight - 28;
+    // Portrait may scroll vertically to keep pieces comfortably tappable.
+    const minimum = vertical ? 48 : window.innerWidth < 500 ? 24 : 32;
+    const cell = Math.min((width - padding - (columns - 1) * gap) / columns,
+      Math.max(minimum, (height - padding - (rows - 1) * gap) / rows), 126);
+    shell.style.width = `${Math.floor(cell * columns + padding + (columns - 1) * gap + axisWidth)}px`;
+  }
 
   for (let y = 0; y < BOARD_ROWS; y += 1) {
     for (let x = 0; x < BOARD_COLUMNS; x += 1) {
@@ -91,6 +123,10 @@ function createBoard() {
   }
 
   function setOrientation(orientation) {
+    if (board.dataset.orientation === orientation && axisLeft.children.length) {
+      fitBoard();
+      return;
+    }
     board.dataset.orientation = orientation;
     shell.dataset.orientation = orientation;
 
@@ -113,20 +149,26 @@ function createBoard() {
     axisLeft.replaceChildren(...axisLabels(rows, "left"));
     axisBottom.replaceChildren(...axisLabels(columns, "bottom"));
 
-    for (const button of buttons) {
-      button.setAttribute("aria-pressed", String(button.dataset.orientation === orientation));
-    }
-
     status.textContent = orientation === "vertical"
       ? "Dọc · 4 cột × 8 hàng"
       : "Ngang · 8 cột × 4 hàng";
+    fitBoard();
   }
 
   for (const button of buttons) {
-    button.addEventListener("click", () => setOrientation(button.dataset.orientation));
+    button.addEventListener("click", () => {
+      mode = button.dataset.orientation;
+      for (const control of buttons) control.setAttribute("aria-pressed", String(control.dataset.orientation === mode));
+      setOrientation(mode === "auto" ? automaticOrientation() : mode);
+    });
   }
 
-  setOrientation("horizontal");
+  const updateLayout = () => setOrientation(mode === "auto" ? automaticOrientation() : mode);
+  window.addEventListener("resize", updateLayout);
+  window.visualViewport?.addEventListener("resize", updateLayout);
+  const observer = new ResizeObserver(fitBoard);
+  for (const selector of [".app-header", ".board-toolbar", ".message-dock", ".play-area"]) observer.observe(document.querySelector(selector));
+  setOrientation(automaticOrientation());
 }
 
 // Apply theme before paint; build the stable board before the module controller starts.

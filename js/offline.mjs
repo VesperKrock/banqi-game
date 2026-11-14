@@ -7,6 +7,18 @@ const SYMBOLS = {
 };
 const NAMES = { general: "Tướng", advisor: "Sĩ", elephant: "Tượng", rook: "Xe", horse: "Mã", cannon: "Pháo", pawn: "Tốt" };
 const COLORS = { red: "Đỏ", black: "Đen" };
+// Reference copy only. Legal moves and forecasts still come exclusively from R1.
+const RULES = {
+  general: "Ăn Tướng, Sĩ, Tượng, Xe, Mã, Pháo của đối phương; không ăn được Tốt.",
+  advisor: "Ăn Sĩ, Tượng, Xe, Mã, Pháo, Tốt của đối phương; không ăn được Tướng.",
+  elephant: "Ăn Tượng, Xe, Mã, Pháo, Tốt của đối phương; không ăn được Tướng hoặc Sĩ.",
+  rook: "Ăn Xe, Mã, Pháo, Tốt của đối phương.",
+  horse: "Ăn Mã, Pháo, Tốt của đối phương.",
+  cannon: "Ăn mọi cấp quân đã lật của đối phương trên cùng hàng/cột, qua đúng một ngòi (quân úp hoặc ngửa, bất kỳ màu). Không ăn liền kề.",
+  pawn: "Ăn Tốt hoặc Tướng của đối phương; không ăn các cấp khác.",
+};
+const movementRule = "Đi một ô ngang/dọc vào ô trống, không đi chéo. ";
+const ruleText = (type) => movementRule + (type === "cannon" ? RULES[type] : "Ăn quân đã lật ở ô liền kề ngang/dọc. " + RULES[type]);
 const PIECE_IMAGES = Object.fromEntries(Object.entries(SYMBOLS).map(([color, pieces]) =>
   [color, Object.fromEntries(Object.keys(pieces).map((type) => [type, `./assets/pieces/${color}/${type}.svg`]))]));
 const REASONS = {
@@ -56,6 +68,44 @@ function renderFace(face, piece, destination) {
   image.src = source;
 }
 
+function createReference() {
+  for (const color of ["red", "black"]) {
+    const list = document.querySelector(`#reference-${color} .reference-list`);
+    for (const type of Object.keys(NAMES)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "reference-piece";
+      button.dataset.piece = type;
+      button.setAttribute("aria-label", `Luật ${NAMES[type]} ${COLORS[color]} ${SYMBOLS[color][type]}`);
+      button.popoverTargetElement = document.getElementById("piece-popover");
+      const face = document.createElement("span"), name = document.createElement("span");
+      face.setAttribute("aria-hidden", "true");
+      renderFace(face, { color, type }, false);
+      name.textContent = NAMES[type];
+      button.append(face, name);
+      button.addEventListener("click", () => {
+        document.getElementById("piece-title").textContent = `${NAMES[type]} ${COLORS[color]} · ${SYMBOLS[color][type]}`;
+        document.getElementById("piece-rule").textContent = ruleText(type);
+      });
+      list.append(button);
+    }
+  }
+  for (const type of Object.keys(NAMES)) {
+    const entry = document.createElement("section"), heading = document.createElement("h3"), copy = document.createElement("p");
+    entry.className = "rule-entry";
+    for (const color of ["red", "black"]) {
+      const face = document.createElement("span");
+      face.setAttribute("aria-hidden", "true");
+      renderFace(face, { color, type }, false);
+      heading.append(face);
+    }
+    heading.append(`${NAMES[type]} · ${SYMBOLS.red[type]} / ${SYMBOLS.black[type]}`);
+    copy.textContent = ruleText(type);
+    entry.append(heading, copy);
+    document.getElementById("compact-rules").append(entry);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // Only this controller owns private state. Never attach it to window or DOM,
   // return it to a view, or serialize/log it. Offline memory is not anti-cheat.
@@ -64,11 +114,27 @@ document.addEventListener("DOMContentLoaded", () => {
   let legalActions = [];
   let selected = null;
   let hasPlayed = false;
+  let lastTurn = null;
+  let toastTimer;
+  let resultShown = false;
+  let lastChaseMessage = "";
+  const chaseHistory = [];
   const cells = [...document.querySelectorAll(".cell")];
   const status = document.getElementById("game-status");
   const players = document.getElementById("player-colors");
   const feedback = document.getElementById("action-feedback");
   const chaseStatus = document.getElementById("chase-status");
+  const chasePanel = document.getElementById("chase-panel");
+  const chaseToggle = document.getElementById("chase-toggle");
+  const history = document.createElement("details");
+  const historyTitle = document.createElement("summary"), historyCopy = document.createElement("p");
+  historyTitle.textContent = "Nhắc trường tróc gần đây";
+  history.append(historyTitle, historyCopy);
+  chasePanel.append(history);
+  const toast = document.getElementById("turn-toast");
+  const resultDialog = document.getElementById("result-dialog");
+  const resultToggle = document.getElementById("result-toggle");
+  createReference();
   const motion = createMotion(document.getElementById("board"));
   const sound = createSound(document.getElementById("sound-toggle"));
 
@@ -128,7 +194,23 @@ document.addEventListener("DOMContentLoaded", () => {
       : result
       ? `${result.outcome === "win" ? `Người ${result.winner + 1} thắng` : "Hòa"} — ${REASONS[result.reason]}.`
       : `Lượt Người ${snapshot.turn + 1}${snapshot.playerColors[snapshot.turn] ? ` · ${COLORS[snapshot.playerColors[snapshot.turn]]}` : " · Lật quân đầu để phân màu"}`;
-    if (status.textContent !== message) status.textContent = message;
+    const statusMessage = result ? "Ván đã kết thúc" : message;
+    if (status.textContent !== statusMessage) status.textContent = statusMessage;
+    if (lastTurn !== null && lastTurn !== snapshot.turn && !result) {
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.hidden = false;
+      toastTimer = setTimeout(() => { toast.hidden = true; }, 2000);
+    }
+    lastTurn = snapshot.turn;
+    resultToggle.hidden = !result;
+    if (result && !resultShown) {
+      document.getElementById("result-message").textContent = message;
+      resultShown = true;
+      toast.hidden = true;
+      document.querySelectorAll("[popover]:popover-open").forEach(panel => panel.hidePopover());
+      resultDialog.showModal();
+    }
     const notices = [];
     snapshot.chase.faults.forEach((faults, player) => {
       if (faults) notices.push(`${playerName(snapshot, player)}: lỗi trường tróc ${faults}/2.${snapshot.status === "playing" ? " Ván tiếp tục; thêm một lỗi sẽ thua." : ""}`);
@@ -144,11 +226,27 @@ document.addEventListener("DOMContentLoaded", () => {
           ? `Chưa hòa lặp 3 lần: ${playerName(snapshot, deferred.player)} đang liên tục đuổi cùng quân.`
           : `Chưa hòa sau ${snapshot.noProgressPly} nửa-lượt: ${playerName(snapshot, deferred.player)} còn đuổi ${deferred.pairs.map((pair) => `${pair.attackerAt} → ${pair.targetAt}`).join(", ")}. Dừng mọi cặp này bằng nước đi vào ô trống sẽ hòa.`);
       }
-      for (const warning of warnings) notices.push(`Cảnh báo ${warningText(snapshot, warning)}`);
+      for (const warning of warnings.toReversed()) notices.unshift(`Cảnh báo ${warningText(snapshot, warning)}`);
     }
     const chaseMessage = notices.join("\n");
     // A separate live region survives say(); unchanged rendering is silent.
     if (chaseStatus.textContent !== chaseMessage) chaseStatus.textContent = chaseMessage;
+    const pinned = selected !== null && warnings.length > 0;
+    chasePanel.dataset.pinned = String(pinned);
+    if (chaseMessage !== lastChaseMessage) {
+      if (chaseMessage) {
+        chaseHistory.push(chaseMessage);
+        if (chaseHistory.length > 6) chaseHistory.shift();
+        historyCopy.textContent = chaseHistory.join("\n\n");
+      }
+      chasePanel.hidden = !chaseMessage;
+      lastChaseMessage = chaseMessage;
+    }
+    if (pinned) chasePanel.hidden = false;
+    chaseToggle.hidden = !chaseMessage && !chaseHistory.length;
+    chaseToggle.textContent = pinned ? "! Nước có nguy cơ lỗi" : "! Trường tróc";
+    chaseToggle.setAttribute("aria-expanded", String(!chasePanel.hidden));
+    history.hidden = !chaseHistory.length;
   }
 
   function refresh() {
@@ -195,6 +293,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function newGame() {
     motion.cancel();
+    resultDialog.close();
+    resultShown = false;
+    lastTurn = null;
+    clearTimeout(toastTimer);
+    toast.hidden = true;
+    chaseHistory.length = 0;
+    lastChaseMessage = "";
+    chasePanel.hidden = true;
+    history.open = false;
+    historyCopy.textContent = "";
     privateState = createGame();
     selected = null;
     hasPlayed = false;
@@ -206,5 +314,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (hasPlayed && publicState.status === "playing" && !window.confirm("Ván đang chơi sẽ bị bỏ. Bắt đầu ván mới?")) return;
     newGame();
   });
+  chaseToggle.addEventListener("click", () => {
+    if (chasePanel.dataset.pinned === "true") return;
+    chasePanel.hidden = !chasePanel.hidden;
+    chaseToggle.setAttribute("aria-expanded", String(!chasePanel.hidden));
+    if (!chaseStatus.textContent) history.open = true;
+  });
+  function closeResult() {
+    resultDialog.close();
+    // Native close events are queued; restore focus in the activating event too.
+    if (publicState?.result) resultToggle.focus();
+  }
+  document.getElementById("result-close").addEventListener("click", closeResult);
+  resultDialog.addEventListener("cancel", event => { event.preventDefault(); closeResult(); });
+  resultDialog.addEventListener("close", () => { if (publicState?.result) resultToggle.focus(); });
+  resultToggle.addEventListener("click", () => resultDialog.showModal());
+  document.getElementById("result-new-game").addEventListener("click", newGame);
   newGame();
 });

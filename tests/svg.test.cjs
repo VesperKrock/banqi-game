@@ -37,7 +37,7 @@ test("Chrome R2-04 — SVG thật, đường dẫn thư mục con và fallback",
   const browser = await launchChrome({ suite: "svg", basePath: "/banqi/" });
   t.after(() => browser.close());
   const { send, evaluate, navigate } = browser;
-  const settle = () => evaluate(`Promise.all(Array.from(document.querySelectorAll('.piece-image'), image => image.decode().catch(() => {}))).then(() => new Promise(requestAnimationFrame))`);
+  const settle = () => evaluate(`Promise.all(Array.from(document.querySelectorAll('#board .piece-image'), image => image.decode().catch(() => {}))).then(() => new Promise(requestAnimationFrame))`);
   const click = async (selector) => { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); await settle(); };
   const load = async (state) => { browser.useGame(state); await navigate(); await settle(); };
   const report = { assets: [], expectedMissingErrors: [], sizes: [] };
@@ -89,13 +89,13 @@ test("Chrome R2-04 — SVG thật, đường dẫn thư mục con và fallback",
 
   await t.test("Mapping đủ 15 ảnh dưới /banqi/: đúng URL, alt/ARIA; quân úp đồng nhất; Ván mới 32 mặt úp", async () => {
     await load(fixture());
-    const images = await evaluate(`Array.from(document.querySelectorAll('.piece-image'), image => ({src: new URL(image.src).pathname, alt: image.alt, hidden: image.getAttribute('aria-hidden'), ready: image.complete && image.naturalWidth === 256, face: image.parentElement.classList.contains('piece-svg'), fallback: image.previousElementSibling.textContent, fallbackDisplay: getComputedStyle(image.previousElementSibling).display}))`);
+    const images = await evaluate(`Array.from(document.querySelectorAll('#board .piece-image'), image => ({src: new URL(image.src).pathname, alt: image.alt, hidden: image.getAttribute('aria-hidden'), ready: image.complete && image.naturalWidth === 256, face: image.parentElement.classList.contains('piece-svg'), fallback: image.previousElementSibling.textContent, fallbackDisplay: getComputedStyle(image.previousElementSibling).display}))`);
     assert.equal(images.length, 15);
     images.forEach((image, i) => assert.deepEqual(image, { src: `/banqi/${assets[i].file}`, alt: "", hidden: "true", ready: true, face: true, fallback: assets[i].symbol, fallbackDisplay: "none" }));
     assert.equal(await evaluate("document.querySelector('#cell-14').getAttribute('aria-label')"), "Quân úp tại g2");
     assert.doesNotMatch(await evaluate("document.querySelector('#cell-14').outerHTML"), /red|black|pawn|兵|卒|data-(?:type|color)/);
     await click("#new-game");
-    const backs = await evaluate(`Array.from(document.querySelectorAll('.piece-image'), image => ({src: image.getAttribute('src'), ready: image.complete && image.naturalWidth === 256, html: image.outerHTML}))`);
+    const backs = await evaluate(`Array.from(document.querySelectorAll('#board .piece-image'), image => ({src: image.getAttribute('src'), ready: image.complete && image.naturalWidth === 256, html: image.outerHTML}))`);
     assert.equal(backs.length, 32);
     assert.equal(new Set(backs.map((image) => image.html)).size, 1);
     assert.ok(backs.every((image) => image.src === "./assets/pieces/back.svg" && image.ready));
@@ -111,7 +111,7 @@ test("Chrome R2-04 — SVG thật, đường dẫn thư mục con và fallback",
       for (const size of [40,50,60]) {
         const heading = document.createElement('p'); heading.textContent = size + ' px — 7 Đỏ / 7 Đen / mặt úp'; section.append(heading);
         const row = document.createElement('div'); Object.assign(row.style, {display:'flex', gap:'12px', padding:'8px 0'});
-        for (const face of [...document.querySelectorAll('.piece-svg')]) { const clone = face.cloneNode(true); clone.style.width = size + 'px'; clone.style.flex = 'none'; row.append(clone); }
+        for (const face of [...document.querySelectorAll('#board .piece-svg')]) { const clone = face.cloneNode(true); clone.style.width = size + 'px'; clone.style.flex = 'none'; row.append(clone); }
         section.append(row);
       }
       document.body.append(section);
@@ -136,7 +136,7 @@ test("Chrome R2-04 — SVG thật, đường dẫn thư mục con và fallback",
     try {
       await load(fixture());
       const before = browser.assetRequestCounts();
-      const faces = await evaluate(`Array.from(document.querySelectorAll('.piece-image'), image => ({fallback:image.previousElementSibling.textContent, imageDisplay:getComputedStyle(image).display, fallbackDisplay:getComputedStyle(image.previousElementSibling).display, failed:image.complete && image.naturalWidth === 0, svg:image.parentElement.classList.contains('piece-svg')}))`);
+      const faces = await evaluate(`Array.from(document.querySelectorAll('#board .piece-image'), image => ({fallback:image.previousElementSibling.textContent, imageDisplay:getComputedStyle(image).display, fallbackDisplay:getComputedStyle(image.previousElementSibling).display, failed:image.complete && image.naturalWidth === 0, svg:image.parentElement.classList.contains('piece-svg')}))`);
       assert.equal(faces.length, 15);
       faces.forEach((face, i) => {
         assert.equal(face.fallback, assets[i].symbol);
@@ -170,7 +170,7 @@ test("Chrome R2-04 — SVG thật, đường dẫn thư mục con và fallback",
 
   await t.test("Hết lỗi tài nguyên: trang mới tải SVG lại; không lỗi console/network ngoài fixture 404", async () => {
     await load(fixture());
-    assert.equal(await evaluate("document.querySelectorAll('.piece-svg').length"), 15);
+    assert.equal(await evaluate("document.querySelectorAll('#board .piece-svg').length"), 15);
     assert.deepEqual(browser.errors.filter((error) => !expectedErrors.has(error)), []);
     assert.equal(await evaluate("['privateState','publicState','legalActions'].some(key => key in window)"), false);
   });

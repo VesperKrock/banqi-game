@@ -62,6 +62,7 @@ function inspectGameplayLayout() {
   });
   for (const button of document.querySelectorAll("button:not(.cell)")) {
     const rect = button.getBoundingClientRect();
+    if (!rect.width && !rect.height) continue; // Closed panels and responsive rails are intentionally hidden.
     ensure(rect.width >= 44 && rect.height >= 44 && rect.right <= innerWidth, "Toolbar touch target fits");
   }
   const boardRect = board.getBoundingClientRect();
@@ -202,7 +203,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
       const position = square(state.board.findIndex((p) => p.color === color));
       state = await play(state, flip(position));
       assert.equal(state.playerColors[firstPlayer], color);
-      assert.equal(await evaluate("document.querySelectorAll('.piece-red, .piece-black').length"), 1);
+      assert.equal(await evaluate("document.querySelectorAll('#board .piece-red, #board .piece-black').length"), 1);
       assert.match(await text("#action-feedback"), new RegExp(`^Người ${firstPlayer + 1} lật`));
       const before = await dom();
       await clickSquare(position); // It is now the other player's turn.
@@ -313,7 +314,10 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
       await load(state);
       for (const action of actions) state = await play(state, action);
       assert.equal(state.status, "finished");
-      assert.equal(await text("#game-status"), message);
+      assert.equal(await text("#result-message"), message);
+      assert.equal(await text("#game-status"), "Ván đã kết thúc");
+      assert.equal(await evaluate("document.querySelector('#result-dialog').open"), true);
+      await click("#result-close");
       const before = await dom();
       await clickSquare("a1"); await clickSquare("a2"); await clickSquare("h4");
       await evaluate("document.querySelector('#cell-0').focus()");
@@ -323,9 +327,12 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
       await click("button[data-theme=dark]");
       await click("button[data-orientation=vertical]");
       await assertBoard(state);
-      assert.equal(await text("#game-status"), message);
+      assert.equal(await text("#result-message"), message);
+      assert.equal(await text("#game-status"), "Ván đã kết thúc");
+      await click("#result-toggle");
       const tree = await send("Accessibility.getFullAXTree");
       assert.ok(tree.nodes.some((node) => node.name?.value === message));
+      await click("#result-close");
       assert.equal(await evaluate("document.querySelector('#game-status').getAttribute('aria-live')"), "polite");
       browser.useGame(null);
       await click("#new-game"); // Finished games need no abandonment confirmation.
@@ -357,7 +364,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     let state = createGame({ firstPlayer: 1, random: seeded(11) });
     await load(state);
     await evaluate("document.querySelector('button[data-orientation=vertical]').focus()");
-    await key("Tab", "Tab", 9);
+    for (let i = 0; i < 20 && await evaluate("document.activeElement.id") !== "cell-0"; i++) await key("Tab", "Tab", 9);
     assert.equal(await evaluate("document.activeElement.id"), "cell-0");
     await key("Enter", "Enter", 13, "\r");
     state = applyAction(state, state.turn, flip("a1")).state;
@@ -434,7 +441,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
       steps += 1;
     }
     assert.equal(state.status, "finished", `Game did not finish after ${steps} actions`);
-    assert.match(await text("#game-status"), /thắng|Hòa/);
+    assert.match(await text("#result-message"), /thắng|Hòa/);
     t.diagnostic(`Ván tái lập hoàn thành sau ${steps} hành động qua UI: ${state.result.reason}`);
   });
 
@@ -491,7 +498,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
       }
     }
     assert.equal(state.result.reason, "chase_technical_fouls");
-    assert.equal(await text("#game-status"), "Người 2 (Đen) thắng — Người 1 (Đỏ) thua do hai lỗi trường tróc (2/2).");
+    assert.equal(await text("#result-message"), "Người 2 (Đen) thắng — Người 1 (Đỏ) thua do hai lỗi trường tróc (2/2).");
     assert.match(await text("#chase-status"), /lỗi trường tróc 2\/2/);
     assert.doesNotMatch(await evaluate("document.body.innerText"), /undefined|NaN/);
     const before = await dom(), notice = await text("#chase-status");
@@ -579,7 +586,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     state = await play(state, chaseLoop[1]);
     state = await play(state, move("c2", "d2"));
     assert.equal(state.result.reason, "no_progress_60");
-    assert.equal(await text("#game-status"), "Hòa — 60 nửa-lượt không lật hoặc ăn quân.");
+    assert.equal(await text("#result-message"), "Hòa — 60 nửa-lượt không lật hoặc ăn quân.");
     assert.equal(await text("#chase-status"), "");
     state = chaseStart({ h4: piece("red", "pawn", true) }); state.noProgressPly = 59;
     state = advanceChase(state, 13);
@@ -653,7 +660,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
           const ensure = (ok, message) => { if (!ok) throw new Error(message); };
           const region = document.querySelector('#chase-status'), rr = region.getBoundingClientRect();
           ensure(document.documentElement.scrollWidth <= innerWidth, 'No horizontal overflow with warnings');
-          ensure(rr.width > 0 && rr.left >= 0 && rr.right <= innerWidth && region.scrollHeight <= region.clientHeight + 1, 'Warning text visible, wrapped and unclipped');
+          ensure(rr.width > 0 && rr.left >= 0 && rr.right <= innerWidth && getComputedStyle(region).overflowY === 'auto', 'Warning panel wraps and remains scrollable');
           ensure(region.getAttribute('aria-live') === 'polite' && region.getAttribute('aria-atomic') === 'true', 'Polite atomic warning');
           const cells = [...document.querySelectorAll('.cell')], rects = cells.map(c => c.getBoundingClientRect());
           const xs = [...new Set(rects.map(r => Math.round(r.left)))].sort((a,b) => a-b);
@@ -679,7 +686,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     // Presentation changes did not reset fault/hold/count: this is still fault 2.
     await clickSquare("b2");
     await assertBoard(applyAction(state, 0, chaseLoop[2]).state);
-    assert.match(await text("#game-status"), /Người 2 \(Đen\) thắng.*hai lỗi trường tróc/);
+    assert.match(await text("#result-message"), /Người 2 \(Đen\) thắng.*hai lỗi trường tróc/);
     t.diagnostic(`Ảnh cảnh báo R2-03B: ${browser.output}`);
   });
 

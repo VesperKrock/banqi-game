@@ -56,7 +56,8 @@ function inspectBoard(theme, orientation) {
     const buttons = [...document.querySelectorAll(`button[data-${attribute}]`)];
     ensure(buttons.filter((button) => button.getAttribute("aria-pressed") === "true").length === 1, "One selected button per group");
     for (const button of buttons) {
-      const selected = button.dataset[attribute] === (attribute === "theme" ? theme : orientation);
+      const mode = document.querySelector("[data-orientation=auto]").getAttribute("aria-pressed") === "true" ? "auto" : orientation;
+      const selected = button.dataset[attribute] === (attribute === "theme" ? theme : mode);
       ensure(button.getAttribute("aria-pressed") === String(selected), "Correct pressed state");
       ensure(getComputedStyle(button.firstElementChild).visibility === (selected ? "visible" : "hidden"), "Selection has visible check mark");
       ensure(button.getBoundingClientRect().height >= 44, "Mobile button height");
@@ -214,7 +215,7 @@ test("Chrome hồi quy R0-02 — HTTP, tọa độ và theme", { timeout: 90000 
       await key("Enter", "Enter", 13, "\r");
       await inspect(theme, "vertical");
       assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineStyle"), "solid");
-      await key("Tab", "Tab", 9);
+      for (let i = 0; i < 20 && await evaluate("document.activeElement.id") !== "cell-0"; i++) await key("Tab", "Tab", 9);
       assert.equal(await evaluate("document.activeElement.id"), "cell-0");
       assert.equal(await evaluate("getComputedStyle(document.activeElement).outlineWidth"), "3px");
       const { nodes } = await send("Accessibility.getFullAXTree");
