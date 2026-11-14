@@ -293,6 +293,34 @@ button:focus-visible, .cell:focus-visible {
   color: var(--focus);
 }
 
+/* The full square SVG includes its own rim and shadow; do not clip or double it. */
+.piece-svg {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.piece-image {
+  display: none;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.piece-svg .piece-image {
+  display: block;
+}
+
+.piece-svg .piece-fallback {
+  display: none;
+}
+
 .cell.is-selected {
   box-shadow: inset 0 0 0 3px var(--focus);
 }
@@ -311,6 +339,7 @@ button:focus-visible, .cell:focus-visible {
 }
 
 .chase-marker {
+  z-index: 1;
   position: absolute;
   inset: 1px 1px auto auto;
   display: grid;

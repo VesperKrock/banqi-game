@@ -30,7 +30,11 @@ function inspectBoard(theme, orientation) {
     ensure(cell.title.includes(label) && cell.getAttribute("aria-label") === `Quân úp tại ${label}`, "Accessible coordinate");
     ensure(cell.tabIndex === 0, "Keyboard access to cell coordinate");
     ensure(Math.round(rect.left) === lefts[vertical ? y : x] && Math.round(rect.top) === tops[vertical ? x : 3 - y], "Physical mapping");
-    ensure(cell.children.length === 1 && cell.textContent === "?", "Only neutral face-down piece inside cell");
+    const image = cell.querySelector("img");
+    ensure(cell.children.length === 1 && cell.textContent === "?", "Only neutral face and its fallback inside cell");
+    ensure(image?.getAttribute("src") === "./assets/pieces/back.svg" && image.complete && image.naturalWidth === 256, "Loaded common back SVG");
+    ensure(cell.firstElementChild.classList.contains("piece-svg") && getComputedStyle(cell.querySelector(".piece-fallback")).display === "none", "SVG replaces the fallback visually");
+    ensure(image.alt === "" && image.getAttribute("aria-hidden") === "true", "Decorative SVG preserves cell label");
     const piece = cell.firstElementChild.getBoundingClientRect();
     ensure(piece.left >= rect.left && piece.right <= rect.right && piece.top >= rect.top && piece.bottom <= rect.bottom, "Piece fits cell");
     ensure(Math.abs(piece.width - piece.height) < 1 && piece.width >= rect.width * 0.65, "Face-down piece stays circular and readable");
@@ -71,7 +75,7 @@ function contrastReport() {
     return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
   };
   const ratio = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
-  const text = document.querySelectorAll("h1, header > p:last-child, .notice, .eyebrow, .board-status, .board-help, .axis, .piece, button");
+  const text = document.querySelectorAll("h1, header > p:last-child, .notice, .eyebrow, .board-status, .board-help, .axis, .piece:not(.piece-svg), button");
   const ratios = [...text].map((element) => {
     const css = getComputedStyle(element);
     return ratio(css.color, css.backgroundColor === "rgba(0, 0, 0, 0)" ? style.backgroundColor : css.backgroundColor);

@@ -46,9 +46,16 @@ function inspectGameplayLayout() {
     const rect = rects[index], face = cell.firstElementChild.getBoundingClientRect();
     ensure(cell === window.originalCells[index], "Stable DOM identity during game");
     ensure(rect.width >= 24 && rect.height >= 24, "Minimum cell touch target at narrow width");
-    ensure(face.left >= rect.left && face.right <= rect.right && face.top >= rect.top && face.bottom <= rect.bottom, "Unicode face fits cell");
+    ensure(face.left >= rect.left && face.right <= rect.right && face.top >= rect.top && face.bottom <= rect.bottom, "Piece canvas fits cell without clipping shadow");
     ensure(Math.abs(face.width - face.height) < 1 && face.width >= rect.width * 0.65, "Circular piece fills cell instead of shrinking to glyph width");
-    ensure(parseFloat(getComputedStyle(cell.firstElementChild).fontSize) >= face.width * 0.28, "Readable Unicode size in both orientations");
+    const image = cell.querySelector("img");
+    if (image) {
+      const r = image.getBoundingClientRect(), css = getComputedStyle(image);
+      ensure(image.complete && image.naturalWidth === 256 && cell.firstElementChild.classList.contains("piece-svg"), "SVG actually decoded and visible");
+      ensure(Math.abs(r.width - r.height) < 1 && r.left >= rect.left && r.right <= rect.right && r.top >= rect.top && r.bottom <= rect.bottom, "Entire square SVG inside cell");
+      ensure(css.objectFit === "contain" && css.pointerEvents === "none" && css.transform === "none", "Image upright, contained and does not intercept input");
+      ensure(getComputedStyle(cell.querySelector(".piece-fallback")).display === "none", "No duplicate Unicode over image");
+    } else ensure(parseFloat(getComputedStyle(cell.firstElementChild).fontSize) >= face.width * 0.28, "Readable move marker");
     ensure(Math.round(rect.left) === lefts[vertical ? Math.floor(index / 8) : index % 8], "Column mapping");
     ensure(Math.round(rect.top) === tops[vertical ? index % 8 : 3 - Math.floor(index / 8)], "Row mapping");
     ensure(getComputedStyle(cell).transform === "none" && getComputedStyle(cell.firstElementChild).transform === "none", "Upright pieces");
@@ -71,10 +78,17 @@ function inspectGameplayLayout() {
     return r * 0.2126 + g * 0.7152 + b * 0.0722;
   };
   const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
-  const faces = [".piece-red", ".piece-black"].map((s) => getComputedStyle(document.querySelector(s)));
+  // Measure the preserved Unicode fallback palette, not transparent SVG wrappers.
+  const probes = ["piece piece-red", "piece piece-black"].map((className) => {
+    const probe = document.createElement("span"); probe.className = className;
+    probe.style.position = "absolute"; probe.style.visibility = "hidden";
+    document.body.append(probe); return probe;
+  });
+  const faces = probes.map((probe) => getComputedStyle(probe));
   const contrasts = faces.map((s) => contrast(s.color, s.backgroundColor));
   ensure(contrasts.every((v) => v >= 4.5), "Red/black text contrast");
   ensure(faces[0].borderStyle === "double" && faces[1].borderStyle === "solid", "Non-color identification");
+  probes.forEach((probe) => probe.remove());
   ensure(document.querySelector(".is-selected")?.id === "cell-0", "Selection survives presentation changes");
   ensure(document.querySelector(".can-capture")?.id === "cell-1", "Capture target remains marked");
   ensure(document.querySelector("#cell-8.can-move .piece").textContent === "·", "Move marker");
@@ -89,7 +103,8 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
   const browser = await launchChrome({ suite: "gameplay" });
   t.after(() => browser.close());
   const { send, evaluate, navigate } = browser;
-  const click = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+  const settleImages = () => evaluate(`Promise.all(Array.from(document.querySelectorAll('.piece-image'), image => image.decode().catch(() => {}))).then(() => new Promise(requestAnimationFrame))`);
+  const click = async (selector) => { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); await settleImages(); };
   const clickSquare = (position) => click(`#cell-${at(position)}`);
   const text = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent`);
   const dom = () => evaluate(`({board: document.getElementById('board').innerHTML, status: document.getElementById('game-status').textContent, players: document.getElementById('player-colors').textContent})`);
@@ -130,11 +145,14 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     }
   }
   async function assertBoard(state) {
+    await settleImages();
     const view = getPublicState(state);
-    const actual = await evaluate(`Array.from(document.querySelectorAll('.cell'), cell => ({face: cell.textContent, label: cell.getAttribute('aria-label'), disabled: cell.getAttribute('aria-disabled')}))`);
+    const actual = await evaluate(`Array.from(document.querySelectorAll('.cell'), cell => ({face: cell.textContent, label: cell.getAttribute('aria-label'), disabled: cell.getAttribute('aria-disabled'), src: cell.querySelector('img')?.getAttribute('src') ?? null, loaded: cell.firstElementChild.classList.contains('piece-svg') && cell.querySelector('img')?.naturalWidth === 256}))`);
     assert.equal(actual.length, 32);
     view.board.forEach((p, index) => {
       assert.equal(actual[index].face, p === null ? "" : p.faceDown ? "?" : SYMBOLS[p.color][p.type], square(index));
+      assert.equal(actual[index].src, p === null ? null : p.faceDown ? "./assets/pieces/back.svg" : `./assets/pieces/${p.color}/${p.type}.svg`, square(index));
+      assert.equal(actual[index].loaded, p !== null, "Only occupied squares display decoded SVGs");
       assert.equal(actual[index].disabled, String(view.status === "finished"));
       if (p?.faceDown) assert.equal(actual[index].label, `Quân úp tại ${square(index)}`);
     });
@@ -167,13 +185,14 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
     assert.equal(await text("#player-colors"), "Người 1: chưa phân màu · Người 2: chưa phân màu");
     assert.match(await text("#game-status"), /^Lượt Người [12] · Lật quân đầu/);
     assert.equal(await evaluate("['privateState', 'publicState', 'legalActions', 'createGame', 'applyAction', 'selected'].some(key => key in window)"), false);
-    assert.equal(await evaluate("document.querySelectorAll('[data-color], [data-type], [data-seed], svg, img').length"), 0);
+    assert.equal(await evaluate("document.querySelectorAll('[data-color], [data-type], [data-seed], svg').length"), 0);
+    assert.equal(await evaluate("document.querySelectorAll('.piece-svg img[src=\"./assets/pieces/back.svg\"]').length"), 32);
     await click("#new-game"); // No confirm before any action.
     assert.equal(await text("#board"), "?".repeat(32));
   });
 
   for (const firstPlayer of [0, 1]) for (const color of ["red", "black"]) {
-    await t.test(`Lật đầu của Người ${firstPlayer + 1} ra ${color}: phân màu, Unicode, đúng một lượt`, async () => {
+    await t.test(`Lật đầu của Người ${firstPlayer + 1} ra ${color}: phân màu, SVG/fallback, đúng một lượt`, async () => {
       let state = createGame({ firstPlayer, random: seeded(41) });
       await load(state);
       const position = square(state.board.findIndex((p) => p.color === color));
@@ -667,7 +686,7 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
   const beforePresentation = await text("#game-status");
   for (const [width, height] of [[320, 568], [390, 844], [768, 1024], [1280, 800]]) {
     for (const theme of ["light", "dark"]) for (const orientation of ["horizontal", "vertical"]) {
-      await t.test(`Gameplay ${width}×${height} ${theme} ${orientation}: Unicode, đích đi/ăn, không overflow`, async () => {
+      await t.test(`Gameplay ${width}×${height} ${theme} ${orientation}: SVG, đích đi/ăn, không overflow`, async () => {
         await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
         await click(`button[data-theme=${theme}]`);
         await click(`button[data-orientation=${orientation}]`);

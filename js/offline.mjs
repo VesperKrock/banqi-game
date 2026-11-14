@@ -6,6 +6,8 @@ const SYMBOLS = {
 };
 const NAMES = { general: "Tướng", advisor: "Sĩ", elephant: "Tượng", rook: "Xe", horse: "Mã", cannon: "Pháo", pawn: "Tốt" };
 const COLORS = { red: "Đỏ", black: "Đen" };
+const PIECE_IMAGES = Object.fromEntries(Object.entries(SYMBOLS).map(([color, pieces]) =>
+  [color, Object.fromEntries(Object.keys(pieces).map((type) => [type, `./assets/pieces/${color}/${type}.svg`]))]));
 const REASONS = {
   all_pieces_captured: "đối phương hết quân",
   no_legal_actions: "đối phương hết nước hợp lệ",
@@ -20,6 +22,37 @@ const playerName = (snapshot, player) => `Người ${player + 1}${snapshot.playe
 function warningText(snapshot, warning) {
   const { action, player, nextFault, losesGame } = warning;
   return `${action.from}–${action.to}: lỗi ${nextFault}/2${losesGame ? " và xử thua" : ""} cho ${playerName(snapshot, player)}.`;
+}
+
+// Receives only a public piece. A concealed piece always uses the same image.
+function renderFace(face, piece, destination) {
+  if (piece === null) {
+    face.className = "piece piece-empty";
+    face.textContent = destination ? "·" : "";
+    return;
+  }
+  const source = piece.faceDown ? "./assets/pieces/back.svg" : PIECE_IMAGES[piece.color][piece.type];
+  // Keep loaded/failed images on selection changes; an error never retries itself.
+  if (face.querySelector("img")?.getAttribute("src") === source) return;
+  face.className = piece.faceDown ? "piece" : `piece piece-${piece.color}`;
+  const fallback = document.createElement("span");
+  fallback.className = "piece-fallback";
+  fallback.textContent = piece.faceDown ? "?" : SYMBOLS[piece.color][piece.type];
+  const image = document.createElement("img");
+  image.className = "piece-image";
+  image.alt = "";
+  image.setAttribute("aria-hidden", "true");
+  image.draggable = false;
+  image.width = 256;
+  image.height = 256;
+  image.addEventListener("load", () => {
+    if (image.parentElement === face) face.classList.add("piece-svg");
+  }, { once: true });
+  image.addEventListener("error", () => {
+    if (image.parentElement === face) face.classList.remove("piece-svg");
+  }, { once: true });
+  face.replaceChildren(fallback, image);
+  image.src = source;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -58,18 +91,13 @@ document.addEventListener("DOMContentLoaded", () => {
       cell.setAttribute("aria-pressed", String(selected === at));
       cell.setAttribute("aria-disabled", String(snapshot.status === "finished"));
       // Hidden pieces never enter the color/type branch, including attributes.
-      face.className = "piece";
+      renderFace(face, piece, destinations.has(at));
       let label;
       if (piece === null) {
-        face.textContent = destinations.has(at) ? "·" : "";
-        face.classList.add("piece-empty");
         label = `Ô trống tại ${at}${destinations.has(at) ? ", có thể đi" : ""}`;
       } else if (piece.faceDown) {
-        face.textContent = "?";
         label = `Quân úp tại ${at}`;
       } else {
-        face.textContent = SYMBOLS[piece.color][piece.type];
-        face.classList.add(`piece-${piece.color}`);
         label = `${pieceName(piece)} tại ${at}${destinations.has(at) ? ", có thể ăn" : ""}`;
       }
       let marker = cell.querySelector(".chase-marker");

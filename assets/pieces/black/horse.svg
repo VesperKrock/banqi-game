@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Black Banqi black-horse — 馬">
+<title>Black Banqi black-horse — 馬</title>
+<desc>Premium lacquered hardwood Banqi game token. Self contained vector paths. Chinese glyph U+99AC</desc>
+<defs>
+  <radialGradient id="shadow" cx="49%" cy="48%" r="52%">
+    <stop offset="0%" stop-color="#000000" stop-opacity=".46"/><stop offset="64%" stop-color="#000000" stop-opacity=".31"/><stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="side" x1="11%" y1="6%" x2="88%" y2="100%">
+    <stop offset="0%" stop-color="#45403d"/><stop offset="31%" stop-color="#24201f"/><stop offset="65%" stop-color="#0e0c0c"/><stop offset="100%" stop-color="#090809"/>
+  </linearGradient>
+  <radialGradient id="shell" cx="26%" cy="17%" r="89%">
+    <stop offset="0%" stop-color="#63605b"/>
+    <stop offset="30%" stop-color="#24201f"/>
+    <stop offset="69%" stop-color="#24201f"/>
+    <stop offset="100%" stop-color="#0e0c0c"/>
+  </radialGradient>
+  <radialGradient id="face" cx="33%" cy="22%" r="96%">
+    <stop offset="0%" stop-color="#37302d"/>
+    <stop offset="45%" stop-color="#191717"/>
+    <stop offset="83%" stop-color="#0c0a0b"/>
+    <stop offset="100%" stop-color="#0e0b0b"/>
+  </radialGradient>
+  <linearGradient id="gold" x1="13%" y1="4%" x2="91%" y2="100%">
+    <stop offset="0%" stop-color="#fff8e6"/>
+    <stop offset="35%" stop-color="#e9d3a7"/>
+    <stop offset="57%" stop-color="#fff8e6"/>
+    <stop offset="90%" stop-color="#917450"/>
+    <stop offset="100%" stop-color="#e9d3a7"/>
+  </linearGradient>
+  <linearGradient id="letter" x1="8%" y1="4%" x2="86%" y2="100%">
+    <stop offset="0%" stop-color="#fff9e8"/>
+    <stop offset="64%" stop-color="#f6ecd4"/>
+    <stop offset="100%" stop-color="#d6c4a4"/>
+  </linearGradient>
+  <linearGradient id="topGlint" x1="0%" y1="0%" x2="80%" y2="90%">
+    <stop offset="0%" stop-color="#ffffff" stop-opacity=".78"/>
+    <stop offset="45%" stop-color="#ffffff" stop-opacity=".20"/>
+    <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="topSheen" x1="0%" y1="0%" x2="35%" y2="100%">
+    <stop offset="0%" stop-color="#fff5da" stop-opacity=".11"/>
+    <stop offset="70%" stop-color="#fff5da" stop-opacity="0"/>
+  </linearGradient>
+  <clipPath id="grainClip"><circle cx="126" cy="122" r="96"/></clipPath>
+</defs>
+<!-- Soft vector shadow, visible on cream and charcoal boards. -->
+<ellipse cx="132" cy="140" rx="120" ry="113" fill="url(#shadow)" opacity=".76"/>
+<ellipse cx="132" cy="144" rx="111" ry="102" fill="url(#shadow)" opacity=".24"/>
+<!-- Thick rounded sidewall and gently lit top shoulder. -->
+<ellipse cx="127.8" cy="135" rx="112.5" ry="111.8" fill="url(#side)"/>
+<circle cx="125.9" cy="122.0" r="111.2" fill="url(#shell)" stroke="#090809" stroke-width=".8"/>
+<path d="M25 113 C27 66 65 26 111 16 C146 8 177 20 194 37" fill="none" stroke="url(#topGlint)" stroke-width="6.6" stroke-linecap="round" opacity=".86"/>
+<circle cx="126" cy="122" r="103.7" fill="none" stroke="#0e0c0c" stroke-opacity=".68" stroke-width="5.5"/>
+<circle cx="126" cy="122" r="101.5" fill="url(#face)" stroke="#63605b" stroke-opacity=".18" stroke-width="2"/>
+<circle cx="126" cy="122" r="100.2" fill="none" stroke="#090809" stroke-opacity=".70" stroke-width="1.8"/>
+<g clip-path="url(#grainClip)"><path d="M45.9 40.2 C82.6 38.1 162.8 42.2 211.9 40.8" stroke="#918c7f" stroke-width="0.47" opacity="0.048" fill="none"/>
+<path d="M42.7 45.2 C90.3 48.9 161.3 41.4 206.5 45.8" stroke="#050505" stroke-width="1.10" opacity="0.035" fill="none"/>
+<path d="M41.3 47.7 C84.2 45.5 162.4 50.0 209.7 46.6" stroke="#050505" stroke-width="1.08" opacity="0.038" fill="none"/>
+<path d="M46.7 52.7 C87.1 56.3 164.3 49.2 220.1 54.1" stroke="#918c7f" stroke-width="0.37" opacity="0.050" fill="none"/>
+<path d="M46.7 55.9 C85.7 57.2 162.8 54.5 209.2 57.6" stroke="#050505" stroke-width="1.15" opacity="0.030" fill="none"/>
+<path d="M43.1 59.1 C85.1 61.6 164.4 56.5 217.2 59.4" stroke="#050505" stroke-width="1.15" opacity="0.030" fill="none"/>
+<path d="M31.7 63.2 C92.8 60.9 161.7 65.6 210.7 63.8" stroke="#918c7f" stroke-width="0.92" opacity="0.037" fill="none"/>
+<path d="M36.6 66.4 C87.7 64.5 167.5 68.3 211.9 67.3" stroke="#050505" stroke-width="0.70" opacity="0.029" fill="none"/>
+<path d="M31.1 71.1 C83.5 73.7 170.6 68.5 208.3 69.4" stroke="#050505" stroke-width="0.52" opacity="0.042" fill="none"/>
+<path d="M47.7 75.0 C88.8 76.7 161.1 73.3 213.9 74.4" stroke="#918c7f" stroke-width="1.05" opacity="0.050" fill="none"/>
+<path d="M32.9 77.3 C81.9 78.4 166.2 76.1 224.1 76.5" stroke="#050505" stroke-width="1.21" opacity="0.032" fill="none"/>
+<path d="M42.3 81.8 C84.9 81.5 162.6 82.1 215.2 79.9" stroke="#050505" stroke-width="0.65" opacity="0.029" fill="none"/>
+<path d="M44.3 85.3 C82.4 86.0 166.7 84.6 212.7 84.2" stroke="#918c7f" stroke-width="0.89" opacity="0.023" fill="none"/>
+<path d="M41.1 88.5 C86.9 90.8 163.9 86.2 206.3 87.3" stroke="#050505" stroke-width="0.47" opacity="0.032" fill="none"/>
+<path d="M41.9 91.6 C90.7 89.6 162.5 93.6 223.6 91.4" stroke="#050505" stroke-width="0.68" opacity="0.042" fill="none"/>
+<path d="M39.7 97.1 C89.2 95.6 169.8 98.6 217.4 98.6" stroke="#918c7f" stroke-width="0.30" opacity="0.051" fill="none"/>
+<path d="M44.4 99.9 C85.9 100.6 170.6 99.3 208.0 99.3" stroke="#050505" stroke-width="0.62" opacity="0.029" fill="none"/>
+<path d="M34.5 104.5 C84.3 106.2 166.9 102.7 223.8 105.1" stroke="#050505" stroke-width="0.82" opacity="0.036" fill="none"/>
+<path d="M37.2 107.5 C84.3 111.2 171.7 103.7 219.2 105.5" stroke="#918c7f" stroke-width="0.95" opacity="0.035" fill="none"/>
+<path d="M42.7 111.2 C89.2 113.2 162.0 109.2 222.0 112.4" stroke="#050505" stroke-width="0.44" opacity="0.037" fill="none"/>
+<path d="M31.1 114.0 C82.8 110.3 161.1 117.8 220.3 113.4" stroke="#050505" stroke-width="0.81" opacity="0.033" fill="none"/>
+<path d="M33.6 119.1 C90.5 118.4 162.7 119.7 219.0 121.0" stroke="#918c7f" stroke-width="0.49" opacity="0.024" fill="none"/>
+<path d="M33.1 121.4 C90.3 124.9 168.4 117.8 213.6 119.7" stroke="#050505" stroke-width="0.57" opacity="0.051" fill="none"/>
+<path d="M35.1 125.3 C82.4 121.9 168.2 128.7 222.4 125.6" stroke="#050505" stroke-width="0.89" opacity="0.035" fill="none"/>
+<path d="M32.9 129.6 C88.8 133.4 163.7 125.8 221.4 128.7" stroke="#918c7f" stroke-width="1.04" opacity="0.036" fill="none"/>
+<path d="M33.2 133.6 C92.7 130.5 161.4 136.7 219.8 134.4" stroke="#050505" stroke-width="1.09" opacity="0.025" fill="none"/>
+<path d="M32.5 136.1 C84.8 134.9 169.3 137.2 216.1 138.0" stroke="#050505" stroke-width="1.19" opacity="0.029" fill="none"/>
+<path d="M37.2 140.8 C80.5 140.1 166.5 141.6 224.8 139.4" stroke="#918c7f" stroke-width="1.00" opacity="0.023" fill="none"/>
+<path d="M34.2 144.4 C86.1 147.9 168.5 140.9 206.0 145.5" stroke="#050505" stroke-width="0.37" opacity="0.033" fill="none"/>
+<path d="M33.8 148.4 C83.1 151.3 171.5 145.4 223.9 148.7" stroke="#050505" stroke-width="0.46" opacity="0.038" fill="none"/>
+<path d="M34.0 151.5 C83.7 149.9 166.7 153.2 221.7 150.6" stroke="#918c7f" stroke-width="1.06" opacity="0.043" fill="none"/>
+<path d="M39.2 154.6 C91.2 157.2 162.0 151.9 219.1 156.0" stroke="#050505" stroke-width="0.55" opacity="0.036" fill="none"/>
+<path d="M47.4 158.1 C88.7 157.1 162.0 159.2 207.2 156.5" stroke="#050505" stroke-width="1.21" opacity="0.042" fill="none"/>
+<path d="M45.7 161.6 C80.2 161.2 163.8 161.9 221.9 162.3" stroke="#918c7f" stroke-width="1.09" opacity="0.044" fill="none"/>
+<path d="M38.8 166.6 C89.2 163.0 170.7 170.2 209.9 167.8" stroke="#050505" stroke-width="0.79" opacity="0.040" fill="none"/>
+<path d="M36.7 170.1 C84.7 172.9 167.4 167.3 206.5 168.2" stroke="#050505" stroke-width="0.75" opacity="0.038" fill="none"/>
+<path d="M31.8 174.2 C92.7 172.7 164.0 175.7 221.0 172.5" stroke="#918c7f" stroke-width="0.45" opacity="0.037" fill="none"/>
+<path d="M35.5 176.9 C87.3 180.6 169.9 173.2 217.5 178.3" stroke="#050505" stroke-width="0.61" opacity="0.050" fill="none"/>
+<path d="M33.6 180.4 C84.6 184.1 163.3 176.7 213.2 179.1" stroke="#050505" stroke-width="0.79" opacity="0.029" fill="none"/>
+<path d="M34.2 184.2 C84.2 186.0 162.7 182.4 220.8 183.7" stroke="#918c7f" stroke-width="0.35" opacity="0.035" fill="none"/>
+<path d="M38.4 188.2 C81.6 186.1 169.6 190.3 222.0 187.2" stroke="#050505" stroke-width="0.40" opacity="0.027" fill="none"/>
+<path d="M46.1 192.2 C88.0 192.4 166.6 191.9 206.8 190.6" stroke="#050505" stroke-width="1.16" opacity="0.048" fill="none"/>
+<path d="M35.9 194.6 C90.5 197.2 166.3 192.0 220.0 195.0" stroke="#918c7f" stroke-width="0.87" opacity="0.038" fill="none"/>
+<path d="M37.0 199.6 C88.6 196.2 163.2 203.1 213.5 197.7" stroke="#050505" stroke-width="0.71" opacity="0.046" fill="none"/>
+  <ellipse cx="97" cy="62" rx="93" ry="65" fill="url(#topSheen)" opacity=".36"/>
+</g>
+<!-- Polished gold/ivory inlay. Red and face-down use double engraving; black uses one. -->
+<circle cx="126" cy="122" r="96.0" fill="none" stroke="#080808" stroke-opacity=".85" stroke-width="5.4"/>
+<circle cx="126" cy="122" r="96.0" fill="none" stroke="url(#gold)" stroke-width="3.0"/>
+<circle cx="126" cy="122" r="98.1" fill="none" stroke="#fff8e6" stroke-opacity=".21" stroke-width=".65"/>
+
+<!-- Precise CJK outline converted from traditional Chinese OpenType font to pure SVG path. -->
+<g transform="translate(53.05426 177.06378) scale(0.146058 -0.146058)">
+          <path id="glyph-black-horse" d="M158 224C162 161 120 106 82 84C49 69 25 39 37 1C51 -39 100 -50 136 -29C189 2 226 94 171 225ZM285 223 273 220C285 163 288 87 273 22C346 -75 475 88 285 223ZM419 229 409 223C438 176 465 105 464 45C551 -34 654 143 419 229ZM561 245 552 238C592 205 637 148 649 98C744 41 811 227 561 245ZM294 734H461V614H294ZM177 763V231H198C258 231 294 258 294 266V289H808C795 149 772 56 746 35C736 28 727 26 711 26C688 26 615 31 570 35V21C614 13 652 0 670 -18C686 -34 690 -57 690 -88C752 -88 793 -80 826 -56C879 -18 908 86 924 270C945 272 957 279 965 287L860 375L799 317H577V437H838C852 437 863 442 866 453C823 490 753 541 753 541L692 465H577V586H837C852 586 862 591 865 602C823 638 753 689 753 689L692 614H577V734H863C877 734 889 739 892 750C847 788 774 842 774 842L710 763H308L177 812ZM294 586H461V465H294ZM294 437H461V317H294Z"/>
+          <use href="#glyph-black-horse" transform="translate(8 -8)" fill="#080808" stroke="#080808" stroke-width="3.4" opacity=".35"/>
+          <use href="#glyph-black-horse" transform="translate(-2 3)" fill="#fff9e8" stroke="#fff9e8" stroke-width="2.0" opacity=".32"/>
+          <use href="#glyph-black-horse" fill="url(#letter)" stroke="#d6c4a4" stroke-width="2.3" stroke-linejoin="round"/>
+        </g>
+</svg>
