@@ -2,9 +2,11 @@
 
 Web cờ tướng lật (Banqi / Chinese Dark Chess), ưu tiên đơn giản, hiệu quả và công bằng.
 
-**R2-04: Offline · Hai người cùng máy, dùng đủ 15 SVG và có Unicode dự phòng.** Giữ engine R2-03C để tạo ván, lật/phân màu, đi/ăn, xử thắng/hòa và lỗi trường tróc. Cảnh báo hiện trước nước vi phạm; giữ tọa độ a1–h4, Ngang/Dọc và Sáng/Tối có lưu lựa chọn. Chưa có Online, Bot hoặc âm thanh.
+**R3: Offline Beta · Hai người cùng máy, 15 SVG có Unicode dự phòng, hiệu ứng lật/đi/ăn và ba âm thanh CC0.** Giữ engine R2-03C để tạo ván, lật/phân màu, đi/ăn, xử thắng/hòa và lỗi trường tróc. Cảnh báo hiện trước nước vi phạm; giữ tọa độ a1–h4, Ngang/Dọc và Sáng/Tối có lưu lựa chọn. Chưa có Online hoặc Bot.
 
 ## Mở trò chơi qua HTTP
+
+Địa chỉ Offline Beta trên [GitHub Pages](https://vesperkrock.github.io/banqi-game/). Bản cập nhật chỉ được phát hành sau khi cổng QA đạt; deployment có thể cần vài phút để cập nhật cache.
 
 Trong VS Code, dùng **Open with Live Server** trên `index.html`, rồi mở địa chỉ được cung cấp, thường là `http://127.0.0.1:5500/index.html`. Bật JavaScript. Có thể dùng local HTTP server tĩnh tương đương; không cần backend/API, framework, npm dependency hoặc build.
 
@@ -36,7 +38,14 @@ R2-01 import `js/engine.mjs` qua ES module. **Không mở bằng cách double-cl
 - Nhãn trục nằm ngoài bàn. Rê chuột lên ô để xem tọa độ; ô cũng có thể nhận focus bằng Tab và có tên truy cập cho trình đọc màn hình. ID/tọa độ của ô luôn giữ nguyên.
 - **Sáng / Tối:** lần đầu theo hệ thống; chọn bằng nút để lưu trong `localStorage` (khóa `banqi-theme`). Lần mở lại ưu tiên lựa chọn đã lưu. Khi chưa chọn thủ công, giao diện theo thay đổi theme hệ thống.
 - Nếu storage bị chặn, nút đổi theme vẫn hoạt động trong lần mở hiện tại. Lưu trữ gắn với trình duyệt/vị trí trang; không đồng bộ giữa thiết bị. Đổi theme/hướng không đổi quân, lượt, kết quả hay quân đang chọn. Dấu ✓ chỉ rõ nút đang chọn.
-- Trên màn hình hẹp, Dọc cho ô lớn hơn; cuộn dọc khi cần. Không xoay chữ/quân, không có animation trang trí.
+- Trên màn hình hẹp, Dọc cho ô lớn hơn; cuộn dọc khi cần. Kết thúc hiệu ứng, chữ/quân luôn thẳng. Bản R3 giảm canvas SVG 6% từ viewport 768 px, giữ kích thước cũ trên mobile; ô bàn ấm hơn, viền dịu hơn.
+
+## Hiệu ứng và âm thanh
+
+- Chỉ sau nước hợp lệ: lật 220 ms, đổi mặt ở giữa; đi 160 ms từ ô nguồn tới đích; ăn thêm nhấn nhẹ và lóe nền. Engine cập nhật ngay, chặn thao tác bàn tiếp theo trong hiệu ứng để tránh bấm lặp.
+- Tôn trọng `prefers-reduced-motion`: bỏ hiệu ứng, cập nhật ngay. Đổi hướng/theme, resize, chuyển tab hoặc Ván mới hủy hiệu ứng và dọn hình tạm; không thay kết quả nước đã đi. Nhãn truy cập/thông báo cập nhật một lần theo sự kiện công khai.
+- **Âm thanh: Bật/Tắt** mặc định bật, lưu bằng `banqi-sound`. Nếu storage bị chặn, vẫn đổi được trong phiên. Ba tiếng local cho lật/đi/ăn, volume 0.35, dùng lại Audio và dừng tiếng trước. Chọn quân, ô sai và đổi trình bày không phát tiếng.
+- Nguồn **el_boss / Freesound, CC0 1.0**, ba file do chủ dự án cung cấp đã đối chiếu nguồn tải. Xem [nguồn, giấy phép và SHA-256](assets/sfx/SOURCES.md). Không CDN, nhạc nền hay âm thanh tổng hợp. Autoplay/file lỗi không cản chơi; file lỗi không tự retry. Manifest rỗng sẽ vô hiệu nút và không gọi URL thiếu.
 
 ## Bộ quân SVG, fallback và dữ liệu công khai
 
@@ -103,13 +112,15 @@ node --test tests/engine.test.cjs tests/endgame.test.cjs tests/chase.test.cjs te
 Nếu có Node 22+ và Chrome cài sẵn, chạy toàn bộ test:
 
 ```text
-node --test --test-reporter=spec tests/engine.test.cjs tests/endgame.test.cjs tests/chase.test.cjs tests/mapping.test.cjs tests/browser.test.cjs tests/gameplay.test.cjs tests/svg.test.cjs
+node --test --test-reporter=spec tests/engine.test.cjs tests/endgame.test.cjs tests/chase.test.cjs tests/mapping.test.cjs tests/browser.test.cjs tests/gameplay.test.cjs tests/svg.test.cjs tests/effects.test.cjs
 node --check js/app.js
 node --check js/offline.mjs
+node --check js/effects.mjs
 node --check js/engine.mjs
 node --check tests/gameplay.test.cjs
 node --check tests/browser.test.cjs
 node --check tests/svg.test.cjs
+node --check tests/effects.test.cjs
 node --check tests/helpers/chrome.cjs
 node --check tests/helpers/http.cjs
 git diff --check
@@ -119,7 +130,9 @@ Test trình duyệt tự mở HTTP server trên `127.0.0.1` với cổng trống
 
 R2-03B giữ toàn bộ **265 test nền** (213 R2-01 + 52 R2-03A), thêm **8 ca UI** vào suite gameplay: tổng **273 test** tính cả hai test cha browser. Không xóa/skip/nới assertion nền hoặc đổi engine/unit test. Những điều chỉnh từ placeholder sang gameplay ở R2-01 vẫn được giữ.
 
-R2-03C thêm 17 ca để đạt **290/290**. R2-04 đã chạy lại baseline 290 trước checkpoint, giữ tất cả ca đó và thêm **22 test**: 1 manifest/giấy phép, 15 asset XML/vector/render, 5 kịch bản mapping/fallback/kích thước/phục hồi và 1 test cha Chrome. Tổng **312/312 PASS**, 0 fail/skip; gồm 218 Node và 94 Chrome tính cả ba test cha. Chỉ cập nhật assertion trình bày Unicode thành kiểm tra SVG đã decode và fallback, đồng thời chờ ảnh tải bất đồng bộ; không thay kỳ vọng luật/kết quả. `node --check` toàn bộ 12 file JS/MJS/CJS trong `js/` và `tests/`, `git diff --check` PASS.
+R2-03C thêm 17 ca để đạt **290/290**. R2-04 đã chạy lại baseline 290 trước checkpoint, giữ tất cả ca đó và thêm **22 test**: 1 manifest/giấy phép, 15 asset XML/vector/render, 5 kịch bản mapping/fallback/kích thước/phục hồi và 1 test cha Chrome. Tổng **312/312 PASS**, 0 fail/skip; gồm 218 Node và 94 Chrome tính cả ba test cha. Chỉ cập nhật assertion trình bày Unicode thành kiểm tra SVG đã decode và fallback, đồng thời chờ ảnh tải bất đồng bộ; không thay kỳ vọng luật/kết quả.
+
+R3 chạy baseline **312/312 PASS**, bổ sung 13 kịch bản hiệu ứng/SFX và 1 test cha Chrome. Nghiệm thu **326/326 PASS**, 0 fail/skip: 218 Node + 108 Chrome (tính bốn test cha); đủ 16 tổ hợp viewport/theme/hướng và warning. `node --check` cả 14 file JS/MJS/CJS, `git diff --check` PASS. MP3 thật decode khoảng 0.340 / 0.112 / 0.236 giây; test spy chỉ dùng riêng để đếm sự kiện và giả lập lỗi. Đã sửa race khóa file khởi động Chrome trên Windows và assertion mới về người đi trước ngẫu nhiên; không sửa engine hoặc nới assertion luật. Log/ảnh mới giữ trong `.local-qa/` và không phát hành.
 
 45 kịch bản gameplay (46 tính test cha) giữ các kiểm tra phân màu, đi/ăn, Pháo/Tốt/Tướng, bốn kết thúc cũ, confirm, input và ván đủ 32 quân kết thúc sau 83 hành động. Ca mới chạy C1 qua UI đủ 27 ply: ply 8 chưa hòa, chuột thực hiện lỗi đầu tại 13, touch thực hiện lỗi thứ hai tại 27; Tab/Enter/Space đọc đúng đích trước khi đi. Có kiểm tra nhiều warning/đổi chọn, invalid, nước không bị cảnh báo, hoãn 60, ván mới, DOM/label/event/log công khai và bố cục khi đang warning lỗi thứ hai. Fixture chỉ thay lần khởi tạo đầu ở HTTP server test; mọi hành động/kết quả qua engine thật, không có backdoor production.
 
@@ -140,4 +153,4 @@ Kiểm tra thủ công trong trình duyệt:
 
 ## Phạm vi tiếp theo
 
-**Bước tiếp theo duy nhất: chủ dự án nghiệm thu bộ quân SVG trong Offline, sau đó mới làm âm thanh/UX.** Chưa làm Online, Bot, backend/Supabase, âm thanh hoặc animation. Checkpoint R0–R1: `663b03b`; R2-01: `d0509c3`; R2-02/R2-03A: `8edc566`; checkpoint R2-03B/C: **`b7a4d322cb2d7c10b7dc9d9a7699177b8ea1587b`**, đúng 13 file source/test/docs sau baseline 290/290. Không ZIP/asset mới/prompt/QA/secret trong commit. Phần tích hợp R2-04 và tài nguyên vẫn trên working tree, không stage/commit thêm/push/deploy. Chi tiết nghiệm thu và danh sách file ở [SPEC.md](docs/SPEC.md#r2-04--checkpoint-và-bộ-quân-svg-offline).
+**Bước tiếp theo duy nhất: chủ dự án nghiệm thu Offline Beta; sau đó mới xem xét R4 Online.** Chưa làm Online, Bot hoặc backend/Supabase. Checkpoint R0–R1: `663b03b`; R2-01: `d0509c3`; R2-02/R2-03A: `8edc566`; R2-03B/C: `b7a4d32`; R2-04: **`13dd02ec3925d85bcd319c7bfe317f58aab4bda5`** (26 file, sau baseline 312/312). R3 chỉ thay trình bày/âm thanh và QA. ZIP, prompt, QA và secret không thuộc bản phát hành. Chi tiết ở [SPEC.md](docs/SPEC.md#r3--offline-beta).

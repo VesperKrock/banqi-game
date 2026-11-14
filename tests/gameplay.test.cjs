@@ -103,7 +103,11 @@ test("Chrome R2-01 — gameplay Offline qua HTTP", { timeout: 120000 }, async (t
   const browser = await launchChrome({ suite: "gameplay" });
   t.after(() => browser.close());
   const { send, evaluate, navigate } = browser;
-  const settleImages = () => evaluate(`Promise.all(Array.from(document.querySelectorAll('.piece-image'), image => image.decode().catch(() => {}))).then(() => new Promise(requestAnimationFrame))`);
+  const settleImages = () => evaluate(`(async () => {
+    while (document.getElementById('board').dataset.animating) await new Promise(requestAnimationFrame);
+    await Promise.all(Array.from(document.querySelectorAll('.piece-image'), image => image.decode().catch(() => {})));
+    await new Promise(requestAnimationFrame);
+  })()`);
   const click = async (selector) => { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); await settleImages(); };
   const clickSquare = (position) => click(`#cell-${at(position)}`);
   const text = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent`);

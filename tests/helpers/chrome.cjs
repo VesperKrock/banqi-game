@@ -50,11 +50,18 @@ module.exports = async function launchChrome({ suite = "regression", basePath = 
 
   try {
     const portFile = path.join(profile, "DevToolsActivePort");
-    for (let tries = 0; !fs.existsSync(portFile); tries += 1) {
-      if (tries > 100) throw new Error("Chrome did not start");
-      await delay(100);
+    let port;
+    for (let tries = 0; !port; tries += 1) {
+      if (tries > 100) throw new Error("Chrome did not publish a readable DevTools port");
+      try {
+        // Windows can briefly lock this file while Chrome creates it.
+        const candidate = fs.readFileSync(portFile, "utf8").split(/\r?\n/)[0];
+        if (/^\d+$/.test(candidate)) port = candidate;
+      } catch (error) {
+        if (!["ENOENT", "EBUSY", "EPERM"].includes(error.code)) throw error;
+      }
+      if (!port) await delay(100);
     }
-    const port = fs.readFileSync(portFile, "utf8").split(/\r?\n/)[0];
     const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
     socket = new WebSocket(targets.find((target) => target.type === "page").webSocketDebuggerUrl);
     await new Promise((resolve, reject) => {

@@ -11,8 +11,8 @@
   --focus: #235c8b;
   --board-bg: #e5d4b9;
   --board-border: #a58c6c;
-  --cell-bg: #fbf5e9;
-  --cell-border: #bda17b;
+  --cell-bg: #f6eddc;
+  --cell-border: #c4ac89;
   --piece-bg: #fffdf8;
   --piece-ink: #62574a;
   --red-ink: #9c211c;
@@ -42,8 +42,8 @@
   --focus: #9dceff;
   --board-bg: #383a38;
   --board-border: #928571;
-  --cell-bg: #2b3238;
-  --cell-border: #847b6c;
+  --cell-bg: #363431;
+  --cell-border: #736b5e;
   --piece-bg: #383c3f;
   --piece-ink: #d4c9b7;
   --red-ink: #ffb9aa;
@@ -71,8 +71,8 @@
     --focus: #9dceff;
     --board-bg: #383a38;
     --board-border: #928571;
-    --cell-bg: #2b3238;
-    --cell-border: #847b6c;
+    --cell-bg: #363431;
+    --cell-border: #736b5e;
     --piece-bg: #383c3f;
     --piece-ink: #d4c9b7;
     --red-ink: #ffb9aa;
@@ -128,7 +128,7 @@ h2 {
   font-weight: 700;
 }
 
-.header-toolbar, .board-toolbar, .game-toolbar, .orientation-controls, .theme-controls {
+.header-toolbar, .board-toolbar, .game-toolbar, .orientation-controls, .theme-controls, .game-actions {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -321,6 +321,21 @@ button:focus-visible, .cell:focus-visible {
   display: none;
 }
 
+/* Leave narrow horizontal boards at their original size. */
+@media (min-width: 768px) {
+  .piece-svg { width: 94%; }
+}
+
+.piece { position: relative; }
+.motion-back {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .cell.is-selected {
   box-shadow: inset 0 0 0 3px var(--focus);
 }
@@ -339,7 +354,7 @@ button:focus-visible, .cell:focus-visible {
 }
 
 .chase-marker {
-  z-index: 1;
+  z-index: 2;
   position: absolute;
   inset: 1px 1px auto auto;
   display: grid;

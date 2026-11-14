@@ -13,6 +13,7 @@ const routes = {
   "/style.css": ["style.css", "text/css"],
   "/js/app.js": ["js/app.js", "text/javascript"],
   "/js/offline.mjs": ["js/offline.mjs", "text/javascript"],
+  "/js/effects.mjs": ["js/effects.mjs", "text/javascript"],
   "/js/engine.mjs": ["js/engine.mjs", "text/javascript"],
   "/js/engine-real.mjs": ["js/engine.mjs", "text/javascript"],
 };
@@ -22,6 +23,7 @@ for (const color of ["red", "black"]) for (const type of ["general", "advisor", 
   routes[`/${file}`] = [file, "image/svg+xml"];
 }
 routes["/assets/pieces/back.svg"] = ["assets/pieces/back.svg", "image/svg+xml"];
+for (const name of ["flip", "move", "capture"]) routes[`/assets/sfx/${name}.mp3`] = [`assets/sfx/${name}.mp3`, "audio/mpeg"];
 
 module.exports = async function startServer({ basePath = "/" } = {}) {
   let initialState = null;

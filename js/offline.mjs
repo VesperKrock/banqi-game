@@ -1,4 +1,5 @@
 import { createGame, getPublicState, getLegalActions, applyAction } from "./engine.mjs";
+import { createMotion, createSound } from "./effects.mjs";
 
 const SYMBOLS = {
   red: { general: "帥", advisor: "仕", elephant: "相", rook: "俥", horse: "傌", cannon: "炮", pawn: "兵" },
@@ -68,6 +69,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const players = document.getElementById("player-colors");
   const feedback = document.getElementById("action-feedback");
   const chaseStatus = document.getElementById("chase-status");
+  const motion = createMotion(document.getElementById("board"));
+  const sound = createSound(document.getElementById("sound-toggle"));
 
   function say(message) {
     // Replace one short message; repeated invalid clicks do not spam live regions.
@@ -160,18 +163,21 @@ document.addEventListener("DOMContentLoaded", () => {
       say("Nước không hợp lệ. Hãy chọn lại.");
       return;
     }
+    const before = motion.prepare(action);
     privateState = result.state;
     selected = null;
     hasPlayed = true;
     refresh();
     const event = result.event;
+    motion.play(event, before);
+    sound.play(event);
     say(event.type === "flip"
       ? `Người ${event.player + 1} lật ${pieceName(event.piece)} tại ${event.at}.`
       : `Người ${event.player + 1}: ${pieceName(event.piece)} ${event.from} → ${event.to}${event.captured ? `, ăn ${pieceName(event.captured)}` : ""}.`);
   }
 
   cells.forEach((cell, index) => cell.addEventListener("click", () => {
-    if (publicState.status === "finished") return;
+    if (motion.busy || publicState.status === "finished") return;
     const at = coordinate(index);
     const flip = legalActions.find((action) => action.type === "flip" && action.at === at);
     if (flip) return perform(flip);
@@ -188,6 +194,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
 
   function newGame() {
+    motion.cancel();
     privateState = createGame();
     selected = null;
     hasPlayed = false;

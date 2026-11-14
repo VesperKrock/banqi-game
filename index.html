@@ -25,7 +25,10 @@
         <p>Lật một quân hoặc chọn quân của mình để đi / ăn. Hai người thay phiên trên cùng thiết bị.</p>
         <div class="game-toolbar">
           <p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">Đang mở ván…</p>
-          <button type="button" id="new-game">Ván mới</button>
+          <div class="game-actions">
+            <button type="button" id="sound-toggle" aria-pressed="false" disabled>Âm thanh: Không khả dụng</button>
+            <button type="button" id="new-game">Ván mới</button>
+          </div>
         </div>
         <p id="player-colors">Người 1: chưa phân màu · Người 2: chưa phân màu</p>
         <div id="chase-status" class="chase-status" role="status" aria-live="polite" aria-atomic="true"></div>

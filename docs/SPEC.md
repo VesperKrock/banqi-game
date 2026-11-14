@@ -6,7 +6,7 @@ R0-01 dựng web tĩnh bằng HTML, CSS và JavaScript thuần. R0-02 bổ sung 
 
 R1-01 bổ sung engine lật/đi/ăn thuần JavaScript và unit test, tách khỏi UI. R1-02 bổ sung thắng/thua và hòa tự động theo quy ước sản phẩm. R2-01 nối engine vào trang bằng ES module, giữ tọa độ/hướng/theme của R0-02. R2-03A thêm trường tróc, giữ bốn API/action/event. R2-03B nối cảnh báo/lỗi/kết quả vào UI. R2-03C bổ sung giai đoạn xét lặp mới sau khi đoạn đuổi từng hoãn hòa chấm dứt; hợp đồng trong [RULES.md](RULES.md). **R2-04 tích hợp 15 SVG có sẵn và fallback Unicode vào Offline**, giữ nguyên engine R2-03C, luật đi/ăn, 7/2, ngoại lệ và 60 ply.
 
-Nguồn yêu cầu: các prompt R0-01 đến R2-04 trong `prompts/`, gần nhất `prompts/R2-04-checkpoint-va-tich-hop-15-SVG.md`. Project Owner quyết định sản phẩm; ChatGPT phụ trách đặc tả/prompt/QA; Codex triển khai trong workspace `banqi-game`. Các quyết định dưới đây không đồng nghĩa với tính năng đã triển khai; trạng thái ghi rõ theo từng mốc.
+R3 bổ sung hài hòa bàn/quân, hiệu ứng ngắn và SFX CC0 cho **Offline Beta**, giữ nguyên engine/luật/cảnh báo. Nguồn yêu cầu hiện tại: `prompts/R3-tron-goi-UX-SFX-hieu-ung-va-phat-hanh.md`; chủ dự án đã cho phép checkpoint, commit R3 và phát hành GitHub Pages sau QA đạt. Những giới hạn commit/deploy ở các mốc cũ bên dưới là lịch sử, không áp dụng cho cổng phát hành R3. Các quyết định chưa triển khai vẫn ghi rõ theo từng mốc.
 
 ## Quyết định sản phẩm đã chốt
 
@@ -174,7 +174,7 @@ Tại mốc R2-02, chạy lại **213/213 test PASS** và tạo checkpoint local
 
 ## R2-04 — checkpoint và bộ quân SVG Offline
 
-**PASS — hoàn tất checkpoint local và tích hợp; phần R2-04 chưa commit.** Thực hiện tiếp nối working tree, không reset/undo/clean hoặc ghi đè asset, ZIP, prompt hay bằng chứng QA.
+**PASS — hoàn tất tích hợp, được checkpoint khi bắt đầu R3 tại `13dd02e`.** Thực hiện tiếp nối working tree, không reset/undo/clean hoặc ghi đè ZIP, prompt hay bằng chứng QA. Trước checkpoint R3, chỉ bỏ khoảng trắng cuối dòng ở 8 SVG; toàn bộ nội dung ngoài whitespace, nét vẽ và giấy phép giữ nguyên.
 
 ### Checkpoint R2-03B/C
 
@@ -214,7 +214,21 @@ Không còn blocker triển khai trong phạm vi R2-04. Chưa thử điện tho�
 | Bot | Một Bot mạnh, chỉ dùng thông tin công khai và xác suất | Chưa triển khai |
 | Hoàn thiện giao diện | SVG có sẵn, âm thanh/UX sau nghiệm thu | SVG đã tích hợp; chưa làm âm thanh/animation |
 
-Chỉ một bước tiếp theo: **chủ dự án nghiệm thu bộ quân SVG trong Offline, sau đó mới làm âm thanh/UX**. Chưa tự triển khai âm thanh/Online/Bot hoặc R3.
+Mốc R2-04 kết thúc tại checkpoint `13dd02e`; phần UX/SFX tiếp tục theo yêu cầu R3 dưới đây. Online/Bot chưa triển khai.
+
+## R3 — Offline Beta
+
+- Checkpoint an toàn **`13dd02ec3925d85bcd319c7bfe317f58aab4bda5`**, message `chore: checkpoint R2-04 SVG offline`, đúng 26 file allowlist sau baseline **312/312 PASS**. Kiểm tra staged phát hiện trailing whitespace có sẵn ở 8 SVG và đã chỉ bỏ whitespace trước commit; không thay hình hoặc giấy phép. Không ZIP/MP3/QA/prompt/secret trong checkpoint.
+- Canvas SVG giảm 6% từ viewport 768 px; giữ mobile ngang 320 px. Màu ô Sáng ấm như giấy, Tối ngả nâu nhẹ, viền mềm hơn. Giữ 32 ô/tọa độ, trục, Ngang/Dọc, dấu chọn/đi/ăn/focus và cảnh báo trường tróc.
+- `js/effects.mjs` chỉ nhận action đã được chấp nhận và event công khai. `offline.mjs` commit state/turn ngay rồi chạy lật 2×110 ms (back chung → mặt công khai giữa hiệu ứng), đi 160 ms, ăn nhấn scale 1.06 và lóe nền. Không gọi lại engine qua callback. Chặn click bàn trong hiệu ứng; theme/hướng/Ván mới/resize/ẩn tab/reduced motion hủy và dọn toàn bộ animation/hình tạm. Không thêm state game vào DOM/window hoặc URL quân úp.
+- Reduced motion bỏ hiệu ứng hoàn toàn. DOM ô/nhãn cảnh báo và vùng aria-live giữ ổn định; không animation vô hạn, thư viện hoặc bộ hẹn giờ thay lượt. Âm thanh không phụ thuộc độ dài animation.
+- Ba MP3 sẵn có, tổng **12.450 bytes**, giữ nguyên SHA-256. Metadata nguồn tải Windows khớp ba ID 546118/546119/546120; trang nguồn của el_boss ghi CC0. Nguồn/giấy phép/hash tại [SOURCES.md](../assets/sfx/SOURCES.md); không đưa metadata tải có chữ ký vào repo. HTTP `audio/mpeg`, Chrome decode file thật; không tải lại hay tổng hợp âm.
+- Audio dùng lại theo loại, volume 0.35, phát trong thao tác người dùng sau nước hợp lệ, dừng tiếng trước. Toggle có `aria-pressed`, mặc định bật và lưu `banqi-sound`; storage chặn vẫn dùng phiên. Bắt reject/throw từ play; media lỗi không retry. Manifest rỗng vô hiệu toggle, không tạo Audio/request. Không âm cho chọn quân, invalid hoặc đổi theme/hướng.
+- Test gameplay chờ animation hoàn tất trước kiểm tra trạng thái, giữ nguyên mọi assertion luật. Helper Chrome retry có giới hạn khi Windows tạm khóa `DevToolsActivePort`; không bỏ qua lỗi trình duyệt. Bộ test mới kiểm decode MP3, chuyển mặt/commit tức thì/double click, đi/ăn và số tiếng, reduced motion, hủy theme/hướng/Ván mới, mute/persist/storage chặn, autoplay/media lỗi và manifest thiếu.
+- **QA trước phát hành PASS: 326/326, 0 fail/skip**, gồm 218 Node + 108 Chrome (bốn test cha), thêm 14 so với baseline 312. Đã chạy lại full sau sửa một assertion mới vốn giả định Người 1 luôn đi trước; nay kiểm chuyển lượt từ người bắt đầu ngẫu nhiên thực tế. `node --check` đủ 14 file JS/MJS/CJS và `git diff --check` PASS. C1 8/13/27, giai đoạn lặp R2-03C, hold 60, cảnh báo, 15 SVG/fallback, keyboard/touch/mouse, 16 layout đều giữ test nền. Đã xem ảnh trước/sau desktop tối, mobile ngang sáng/dọc tối và cảnh báo 320 px. Không lỗi console/network ngoài fixture 404 đã xác định của SVG. Engine, app mapping, test luật/chase/endgame/mapping và tài liệu luật không đổi so checkpoint.
+- Cổng phát hành: full Node/Chrome, `node --check`, diff/check staged và protected files phải PASS trước commit R3. Chỉ push thường `origin/main` tới `VesperKrock/banqi-game` sau fetch/kiểm tra ancestry; Pages từ `main / (root)`, không workflow/custom domain. Xác minh public sau push; nếu credentials/Pages thiếu thì báo PARTIAL, không force hoặc giả báo đã live.
+- Đích public: [Offline Beta](https://vesperkrock.github.io/banqi-game/); Pages hiện cấu hình đúng `main / (root)`. Báo cáo phát hành cuối đối chiếu nội dung public với commit, kiểm HTTP HTML/CSS/JS/15 SVG/3 MP3 và thao tác Chrome PC/mobile; không lấy trạng thái build thay cho kiểm trang thật.
+- Giới hạn: QA Chrome headless PC/mobile giả lập; chưa kiểm thiết bị thật, Safari/Firefox, screen reader hoặc chất lượng nghe trên loa thật. Offline chỉ hai người cùng máy, tải lại mất ván; không Online/Bot/backend.
 
 ## Ràng buộc thực hiện R0
 
