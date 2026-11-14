@@ -114,6 +114,8 @@ test("Chrome hồi quy R0-02 — HTTP, tọa độ và theme", { timeout: 90000 
   ` });
   await system("light");
   await navigate();
+  assert.equal(await evaluate(`document.querySelector('link[rel="icon"]')?.getAttribute('href')`), "./assets/pieces/back.svg",
+    "Explicit relative favicon avoids a GitHub Pages root /favicon.ico 404");
 
   await t.test("Lần đầu theo hệ thống sáng/tối, cập nhật khi hệ thống đổi", async () => {
     assert.equal(await evaluate("localStorage.getItem('banqi-theme')"), null);
