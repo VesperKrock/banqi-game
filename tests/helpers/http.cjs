@@ -14,6 +14,10 @@ const routes = {
   "/js/app.js": ["js/app.js", "text/javascript"],
   "/js/offline.mjs": ["js/offline.mjs", "text/javascript"],
   "/js/effects.mjs": ["js/effects.mjs", "text/javascript"],
+  "/js/bot.mjs": ["js/bot.mjs", "text/javascript"],
+  "/js/bot-protocol.mjs": ["js/bot-protocol.mjs", "text/javascript"],
+  "/js/bot-runner.mjs": ["js/bot-runner.mjs", "text/javascript"],
+  "/js/bot-worker.mjs": ["js/bot-worker.mjs", "text/javascript"],
   "/js/engine.mjs": ["js/engine.mjs", "text/javascript"],
   "/js/engine-real.mjs": ["js/engine.mjs", "text/javascript"],
 };
@@ -27,6 +31,8 @@ for (const name of ["flip", "move", "capture"]) routes[`/assets/sfx/${name}.mp3`
 
 module.exports = async function startServer({ basePath = "/", cacheAssets = false } = {}) {
   let initialState = null;
+  let fixtureStarts = 1;
+  let rejectPlayer = null;
   let assetFailure = null;
   let assetGate = null;
   const assetRequests = {};
@@ -50,12 +56,15 @@ module.exports = async function startServer({ basePath = "/", cacheAssets = fals
     }
     response.writeHead(200, { "Content-Type": `${route[1]}; charset=utf-8`, "Cache-Control": cacheAssets && route[1] === "image/svg+xml" ? "max-age=60" : "no-store" });
     if (pathname === "/js/engine.mjs" && initialState !== null) {
-      response.end(`export { getPublicState, getLegalActions, applyAction } from './engine-real.mjs';
-        import { createGame as realCreateGame } from './engine-real.mjs';
-        let first = true;
+      response.end(`export { getPublicState, getLegalActions } from './engine-real.mjs';
+        import { createGame as realCreateGame, applyAction as realApplyAction } from './engine-real.mjs';
+        let remaining = ${fixtureStarts}, rejectOnce = ${rejectPlayer !== null};
+        export function applyAction(state, player, action) {
+          if (rejectOnce && player === ${JSON.stringify(rejectPlayer)}) { rejectOnce = false; return {ok:false,error:'TEST_REJECTION'}; }
+          return realApplyAction(state, player, action);
+        }
         export function createGame() {
-          if (!first) return realCreateGame();
-          first = false;
+          if (remaining-- <= 0) return realCreateGame();
           return ${JSON.stringify(initialState)};
         }`);
     } else response.end(fs.readFileSync(path.join(root, route[0])));
@@ -66,7 +75,7 @@ module.exports = async function startServer({ basePath = "/", cacheAssets = fals
   });
   return {
     url: `http://127.0.0.1:${server.address().port}${basePath}`,
-    useGame(state) { initialState = structuredClone(state); },
+    useGame(state, { starts = 1, reject = null } = {}) { initialState = structuredClone(state); fixtureStarts = starts; rejectPlayer = reject; },
     useAssetFailure(mode) {
       if (![null, "missing", "invalid"].includes(mode)) throw new Error("Unknown asset failure fixture");
       assetFailure = mode;

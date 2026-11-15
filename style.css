@@ -384,6 +384,9 @@ main { width: min(100%, 1600px); margin-inline: auto; padding: 16px 24px; }
 .app-header { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--cell-border); }
 h1 { margin: 0; font-size: 1.6rem; line-height: 1.2; letter-spacing: -.04em; }
 .game-status { flex: 1 1 175px; margin: 0; font-weight: 700; font-size: .9rem; }
+#game-mode { max-width: 100%; min-height: 44px; padding: 7px 8px; border: 1px solid var(--button-border); border-radius: .5rem; font: inherit; font-size: .875rem; color: var(--text); background: var(--button-bg); }
+#game-mode:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.bot-status { margin: 0; color: var(--muted); font-size: .82rem; }
 .game-actions, .orientation-controls, .theme-controls, .board-tools, .dialog-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .game-layout { display: grid; grid-template-columns: 106px minmax(0, 1fr) 106px; align-items: start; gap: 24px; }
 .play-area { min-width: 0; }
@@ -446,7 +449,7 @@ summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   .play-area:has(#chase-toggle:not([hidden])) .chase-status { max-height: 112px; }
   .board-toolbar { grid-column: 1 / -1; }
   .board-shell { grid-column: 1; grid-row: 2; }
-  .message-dock { grid-column: 2; grid-row: 2; align-content: start; max-height: calc(100dvh - 126px); overflow-y: auto; }
+  .message-dock { grid-column: 2; grid-row: 2; align-content: start; max-height: var(--dock-max-height, calc(100dvh - 126px)); overflow-y: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }

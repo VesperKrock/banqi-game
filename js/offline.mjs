@@ -1,5 +1,7 @@
 import { createGame, getPublicState, getLegalActions, applyAction } from "./engine.mjs";
 import { createMotion, createSound } from "./effects.mjs";
+import { createBotRunner } from "./bot-runner.mjs";
+import { copyPublic, copyEvent, createBotInput, matchLegal } from "./bot-protocol.mjs";
 
 const SYMBOLS = {
   red: { general: "帥", advisor: "仕", elephant: "相", rook: "俥", horse: "傌", cannon: "炮", pawn: "兵" },
@@ -45,9 +47,9 @@ const REASONS = {
 };
 const coordinate = (index) => `${"abcdefgh"[index % 8]}${Math.floor(index / 8) + 1}`;
 const pieceName = (piece) => `${NAMES[piece.type]} ${COLORS[piece.color]}`;
-const playerName = (snapshot, player) => `Người ${player + 1}${snapshot.playerColors[player] ? ` (${COLORS[snapshot.playerColors[player]]})` : ""}`;
+const describePlayer = (snapshot, player, name = `Người ${player + 1}`) => `${name}${snapshot.playerColors[player] ? ` (${COLORS[snapshot.playerColors[player]]})` : ""}`;
 
-function warningText(snapshot, warning) {
+function describeWarning(snapshot, warning, playerName = describePlayer) {
   const { action, player, nextFault, losesGame } = warning;
   return `${action.from}–${action.to}: lỗi ${nextFault}/2${losesGame ? " và xử thua" : ""} cho ${playerName(snapshot, player)}.`;
 }
@@ -132,6 +134,15 @@ document.addEventListener("DOMContentLoaded", () => {
   let legalActions = [];
   let selected = null;
   let hasPlayed = false;
+  let mode = "local", session = 0, position = 0, botSeed = 0;
+  let publicHistory;
+  const bot = createBotRunner();
+  const modeControl = document.getElementById("game-mode");
+  const botStatus = document.getElementById("bot-status");
+  const botRetry = document.getElementById("bot-retry");
+  const playerLabel = player => mode === "solo" ? (player === 0 ? "Bạn" : "Bot") : `Người ${player + 1}`;
+  const playerName = (snapshot, player) => describePlayer(snapshot, player, playerLabel(player));
+  const warningText = (snapshot, warning) => describeWarning(snapshot, warning, playerName);
   let lastTurn = null;
   let toastTimer;
   let resultShown = false;
@@ -176,7 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const warning = warnedTargets.get(at);
       cell.classList.toggle("chase-warning", Boolean(warning));
       cell.setAttribute("aria-pressed", String(selected === at));
-      cell.setAttribute("aria-disabled", String(snapshot.status === "finished"));
+      cell.setAttribute("aria-disabled", String(snapshot.status === "finished" || (mode === "solo" && snapshot.turn === 1)));
       // Hidden pieces never enter the color/type branch, including attributes.
       renderFace(face, piece, destinations.has(at));
       let label;
@@ -205,13 +216,13 @@ document.addEventListener("DOMContentLoaded", () => {
       cell.title = label;
       cell.setAttribute("aria-label", label);
     });
-    players.textContent = snapshot.playerColors.map((color, player) => `Người ${player + 1}: ${COLORS[color] || "chưa phân màu"}`).join(" · ");
+    players.textContent = snapshot.playerColors.map((color, player) => `${playerLabel(player)}: ${COLORS[color] || "chưa phân màu"}`).join(" · ");
     const result = snapshot.result;
     const message = result?.reason === "chase_technical_fouls"
       ? `${playerName(snapshot, result.winner)} thắng — ${playerName(snapshot, 1 - result.winner)} thua do ${REASONS[result.reason]}.`
       : result
-      ? `${result.outcome === "win" ? `Người ${result.winner + 1} thắng` : "Hòa"} — ${REASONS[result.reason]}.`
-      : `Lượt Người ${snapshot.turn + 1}${snapshot.playerColors[snapshot.turn] ? ` · ${COLORS[snapshot.playerColors[snapshot.turn]]}` : " · Lật quân đầu để phân màu"}`;
+      ? `${result.outcome === "win" ? `${playerLabel(result.winner)} thắng` : "Hòa"} — ${REASONS[result.reason]}.`
+      : `Lượt ${playerLabel(snapshot.turn)}${snapshot.playerColors[snapshot.turn] ? ` · ${COLORS[snapshot.playerColors[snapshot.turn]]}` : " · Lật quân đầu để phân màu"}`;
     const statusMessage = result ? "Ván đã kết thúc" : message;
     if (status.textContent !== statusMessage) status.textContent = statusMessage;
     if (lastTurn !== null && lastTurn !== snapshot.turn && !result) {
@@ -273,14 +284,44 @@ document.addEventListener("DOMContentLoaded", () => {
     render(publicState, legalActions);
   }
 
+  function botMessage(message = "") {
+    if (botStatus.textContent !== message) botStatus.textContent = message;
+    botStatus.hidden = !message;
+  }
+
+  function scheduleBot() {
+    if (mode !== "solo" || publicState.status !== "playing" || publicState.turn !== 1) return;
+    botRetry.hidden = true;
+    botMessage("Bot đang tính…");
+    const token = { session, position };
+    // No privateState or engine callback enters this payload. History contains
+    // only sanitized observations/events, including faces AFTER a real reveal.
+    const input = createBotInput(publicState, legalActions, publicHistory, botSeed ^ position);
+    bot.request(input, token).then(result => {
+      if (token.session !== session || token.position !== position || mode !== "solo" || publicState.turn !== 1 || publicState.status !== "playing") return;
+      if (result.status === "cancelled") return;
+      botMessage();
+      const action = result.status === "ok" ? matchLegal(result.action, legalActions) : null;
+      if (!action || !perform(action)) {
+        botRetry.hidden = false;
+        botMessage("Bot chưa tính được nước. Thử lại hoặc chọn Ván mới.");
+      }
+    });
+  }
+
   function perform(action) {
     const result = applyAction(privateState, publicState.turn, action);
     if (!result.ok) {
       say("Nước không hợp lệ. Hãy chọn lại.");
-      return;
+      return false;
     }
+    // A fast Bot reply may arrive during the human's animation. State already
+    // committed; finish that presentation safely rather than adding a fake wait.
+    if (mode === "solo" && publicState.turn === 1) motion.cancel();
     const before = motion.prepare(action);
     privateState = result.state;
+    position++;
+    publicHistory.events.push(copyEvent(result.event));
     selected = null;
     hasPlayed = true;
     refresh();
@@ -290,12 +331,14 @@ document.addEventListener("DOMContentLoaded", () => {
     motion.play(event, before, faceReady.get(targetFace));
     sound.play(event);
     say(event.type === "flip"
-      ? `Người ${event.player + 1} lật ${pieceName(event.piece)} tại ${event.at}.`
-      : `Người ${event.player + 1}: ${pieceName(event.piece)} ${event.from} → ${event.to}${event.captured ? `, ăn ${pieceName(event.captured)}` : ""}.`);
+      ? `${playerLabel(event.player)} lật ${pieceName(event.piece)} tại ${event.at}.`
+      : `${playerLabel(event.player)}: ${pieceName(event.piece)} ${event.from} → ${event.to}${event.captured ? `, ăn ${pieceName(event.captured)}` : ""}.`);
+    scheduleBot();
+    return true;
   }
 
   cells.forEach((cell, index) => cell.addEventListener("click", () => {
-    if (motion.busy || publicState.status === "finished") return;
+    if (motion.busy || publicState.status === "finished" || (mode === "solo" && publicState.turn === 1)) return;
     const at = coordinate(index);
     const flip = legalActions.find((action) => action.type === "flip" && action.at === at);
     if (flip) return perform(flip);
@@ -312,6 +355,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
 
   function newGame() {
+    bot.cancel();
+    session++;
+    position = 0;
+    botSeed = globalThis.crypto?.getRandomValues ? crypto.getRandomValues(new Uint32Array(1))[0] : (Date.now() ^ session) >>> 0;
+    botMessage();
+    botRetry.hidden = true;
     motion.cancel();
     resultDialog.close();
     resultShown = false;
@@ -324,11 +373,26 @@ document.addEventListener("DOMContentLoaded", () => {
     history.open = false;
     historyCopy.textContent = "";
     privateState = createGame();
+    publicHistory = { initial: copyPublic(getPublicState(privateState)), events: [] };
     selected = null;
     hasPlayed = false;
     refresh();
     say("Lật một quân úp để bắt đầu.");
+    scheduleBot();
   }
+
+  modeControl.addEventListener("change", () => {
+    const next = modeControl.value;
+    if (next === mode) return;
+    if (hasPlayed && publicState.status === "playing" && !window.confirm("Đổi chế độ sẽ bỏ ván đang chơi và bắt đầu ván mới?")) {
+      modeControl.value = mode;
+      return;
+    }
+    mode = next;
+    document.getElementById("help-title").textContent = mode === "solo" ? "Solo với Bot" : "Hai người cùng máy";
+    newGame();
+  });
+  botRetry.addEventListener("click", scheduleBot);
 
   document.getElementById("new-game").addEventListener("click", () => {
     if (hasPlayed && publicState.status === "playing" && !window.confirm("Ván đang chơi sẽ bị bỏ. Bắt đầu ván mới?")) return;

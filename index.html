@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Chơi Banqi Offline hai người cùng máy, với tọa độ a1–h4, hướng ngang/dọc và giao diện sáng/tối.">
-    <title>Banqi — Offline hai người</title>
+    <meta name="description" content="Chơi Banqi Offline hai người cùng máy hoặc Solo với Bot công bằng, bàn tự xoay và giao diện sáng/tối.">
+    <title>Banqi — Offline và Solo</title>
     <link rel="icon" type="image/svg+xml" href="./assets/pieces/back.svg">
     <!-- Apply the saved/system theme before the stylesheet and page content. -->
     <script src="./js/app.js"></script>
@@ -15,6 +15,10 @@
     <main>
       <header class="app-header">
         <h1>Banqi</h1>
+        <select id="game-mode" aria-label="Chế độ chơi">
+          <option value="local">Hai người cùng máy</option>
+          <option value="solo">Solo với Bot</option>
+        </select>
         <p id="game-status" class="game-status" role="status" aria-live="polite" aria-atomic="true">Đang mở ván…</p>
         <div class="game-actions">
           <button type="button" id="sound-toggle" aria-pressed="false" disabled>Âm thanh: Không khả dụng</button>
@@ -53,6 +57,8 @@
           </div>
           <div class="message-dock">
             <p id="action-feedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true">Mở trang qua Live Server / HTTP để chơi.</p>
+            <p id="bot-status" class="bot-status" role="status" aria-live="polite" hidden></p>
+            <button type="button" id="bot-retry" hidden>Thử lại Bot</button>
             <button type="button" id="chase-toggle" aria-expanded="false" aria-controls="chase-panel" hidden>! Trường tróc</button>
             <div id="chase-panel" class="chase-panel" hidden>
               <div id="chase-status" class="chase-status" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -80,6 +86,7 @@
       <h2 id="help-title">Hai người cùng máy</h2>
       <p id="player-colors">Người 1: chưa phân màu · Người 2: chưa phân màu</p>
       <p>Lật một quân hoặc chọn quân của mình để đi / ăn. Quân lật đầu tiên phân màu cho người lật; hai người thay phiên.</p>
+      <p>Solo với Bot: Bạn là Người 1, Bot là Người 2. Người bắt đầu vẫn ngẫu nhiên; màu theo quân lật đầu. Bot chỉ biết quân đã lật và đã bị ăn, không biết trước quân úp. Tính xong là đi, không chờ giả. Đổi chế độ sẽ mở ván mới.</p>
       <p class="board-help">Ô có dấu ·: đi được; viền nét đứt: ăn được; dấu !: nước sẽ phạm lỗi trường tróc. Bấm lại quân để bỏ chọn. Tab rồi Enter / Space để thao tác. Tọa độ a1–h4 giữ nguyên khi đổi hướng.</p>
       <p>Tự động chọn hướng theo kích thước cửa sổ. Chọn Ngang hoặc Dọc để giữ hướng đến khi chọn Tự động hoặc tải lại trang.</p>
     </div>

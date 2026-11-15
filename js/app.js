@@ -86,6 +86,7 @@ function createBoard() {
     const toolbar = document.querySelector(".board-toolbar");
     const dock = document.querySelector(".message-dock");
     const sideDock = getComputedStyle(area).getPropertyValue("--side-dock").trim() === "1";
+    area.style.setProperty("--dock-max-height", `${Math.max(64, window.innerHeight - toolbar.getBoundingClientRect().bottom - 20)}px`);
     const css = getComputedStyle(shell);
     const gap = parseFloat(css.getPropertyValue("--board-gap"));
     const padding = parseFloat(css.getPropertyValue("--board-padding")) * 2 + 2;

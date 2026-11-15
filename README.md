@@ -2,7 +2,17 @@
 
 Web cờ tướng lật (Banqi / Chinese Dark Chess), ưu tiên đơn giản, hiệu quả và công bằng.
 
-**R3: Offline Beta · Hai người cùng máy, 15 SVG có Unicode dự phòng, hiệu ứng lật/đi/ăn và ba âm thanh CC0.** Giữ engine R2-03C để tạo ván, lật/phân màu, đi/ăn, xử thắng/hòa và lỗi trường tróc. Cảnh báo hiện trước nước vi phạm; giữ tọa độ a1–h4, Ngang/Dọc và Sáng/Tối có lưu lựa chọn. Chưa có Online hoặc Bot.
+**R4: Offline · Hai người cùng máy hoặc Solo với một Bot.** Giữ nguyên engine R2-03C, luật, SVG/fallback, SFX và giao diện tự xoay R3. Chưa có Online, tài khoản hoặc backend.
+
+## Solo với Bot
+
+Chọn **Solo với Bot** ở đầu trang. Bạn là Người 1, Bot là Người 2; người bắt đầu vẫn ngẫu nhiên, màu theo quân lật đầu. Đổi chế độ giữa ván cần xác nhận mở ván mới; tải lại mặc định Hai người cùng máy. Trên lượt Bot, bàn khóa thao tác người chơi nhưng các nút giao diện vẫn dùng được. Nếu tính nước lỗi, dùng **Thử lại Bot**, Ván mới hoặc đổi chế độ.
+
+Bot chạy trong Web Worker, không chờ giả và không cố ý đánh yếu. Bot chỉ nhận bản sao allowlist của public state/hành động/lịch sử công khai, dùng RNG riêng; không đọc danh tính quân úp thật. Phân bố quân chưa lật được tính đúng theo số quân còn lại; các thế giả định dùng engine hiện có. Ưu tiên an toàn, trao đổi, thắng ngay/tránh thua ngay, rồi tìm kiếm có giới hạn; không bảo đảm không bao giờ sai. Offline không chống người dùng cố ý đọc bộ nhớ bằng DevTools.
+
+Mục tiêu đa số nước ≤1,5 s, watchdog 2,8 s hủy Worker rồi dùng nước dự phòng đã kiểm tra hoặc báo lỗi để thử lại. Đo ngày 2026-11-15 trên Windows/i5-11400H, Node 22.19.0, Chrome 157: 20 thế × 5 seed mỗi cấu hình; median/p95/max (ms) Node **14/68/301**, Worker desktop **26/58/256**, Worker mobile giả lập **31/65/260**. Chrome chỉ throttle được CPU trang, không throttle Worker; đo riêng cùng thuật toán trên CPU trang 6×: **82/315/702 ms**. 0 lỗi theo tiêu chí chiến thuật của fixtures; 0/200 fallback ở benchmark Worker. Đây không phải tỷ lệ thắng hoặc bảo đảm trên điện thoại thật.
+
+Test Bot: `node --test tests/bot.test.cjs tests/bot-worker.test.cjs tests/bot-gameplay.test.cjs`. Full suite: `node --test --test-concurrency=1 tests/*.test.cjs`. Benchmark thật: `node tests/bot-benchmark.cjs`; báo cáo/ảnh lưu `.local-qa/`, không commit. Các suite Chrome cần Chrome có sẵn (hoặc `CHROME_PATH`).
 
 ## Mở trò chơi qua HTTP
 
@@ -10,7 +20,7 @@ Web cờ tướng lật (Banqi / Chinese Dark Chess), ưu tiên đơn giản, hi
 
 Trong VS Code, dùng **Open with Live Server** trên `index.html`, rồi mở địa chỉ được cung cấp, thường là `http://127.0.0.1:5500/index.html`. Bật JavaScript. Có thể dùng local HTTP server tĩnh tương đương; không cần backend/API, framework, npm dependency hoặc build.
 
-R2-01 import `js/engine.mjs` qua ES module. **Không mở bằng cách double-click `file://`** vì trình duyệt thường chặn module import qua CORS. Các đường dẫn tài nguyên đều tương đối, phù hợp hosting dưới thư mục như GitHub Pages; chưa push/deploy.
+Trang import `js/engine.mjs` và Worker qua ES module. **Không mở bằng cách double-click `file://`** vì trình duyệt thường chặn module import qua CORS. Các đường dẫn tài nguyên đều tương đối, phù hợp hosting dưới thư mục như GitHub Pages.
 
 ## Cách chơi
 
@@ -153,4 +163,4 @@ Kiểm tra thủ công trong trình duyệt:
 
 ## Phạm vi tiếp theo
 
-**Bước tiếp theo duy nhất: chủ dự án nghiệm thu Offline Beta; sau đó mới xem xét R4 Online.** Chưa làm Online, Bot hoặc backend/Supabase. Checkpoint R0–R1: `663b03b`; R2-01: `d0509c3`; R2-02/R2-03A: `8edc566`; R2-03B/C: `b7a4d32`; R2-04: **`13dd02ec3925d85bcd319c7bfe317f58aab4bda5`** (26 file, sau baseline 312/312). R3 chỉ thay trình bày/âm thanh và QA. ZIP, prompt, QA và secret không thuộc bản phát hành. Chi tiết ở [SPEC.md](docs/SPEC.md#r3--offline-beta).
+**Bước tiếp theo: chủ dự án chơi Solo thực chiến và báo các nước Bot sai; sau đó mới xem xét Online.** Chưa làm Online/backend/Supabase. Các checkpoint R0–R3 được giữ trong Git; baseline R4 thực tế tại `965419c` đạt 361/361 (gồm bản sửa SVG R3-UI02). ZIP, prompt, QA và secret không thuộc bản phát hành. Chi tiết ở [SPEC.md](docs/SPEC.md#r4--solo-với-bot).

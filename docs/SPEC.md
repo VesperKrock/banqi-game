@@ -22,7 +22,7 @@ R3 bổ sung hài hòa bàn/quân, hiệu ứng ngắn và SFX CC0 cho **Offline
 
 ### Lộ trình và giới hạn sản phẩm
 
-Offline hai người → Online hai người → một Bot mạnh duy nhất. Không Elo, matchmaking, tài khoản bắt buộc, bảng xếp hạng, chat hoặc thương mại.
+Thứ tự hiện tại: Offline hai người → Solo với một Bot → nghiệm thu thực chiến → xem xét Online. Không Elo, matchmaking, tài khoản bắt buộc, bảng xếp hạng, chat hoặc thương mại.
 
 Online dự kiến dùng Supabase riêng + GitHub Pages, mã phòng đơn giản, đồng hồ gợi ý 10+0 và 15+10, cầu hòa, chịu thua và kết thúc ván. Danh tính quân chưa lật phải giữ ở backend, không gửi về trình duyệt trước khi lật; che bằng CSS không bảo vệ bí mật.
 
@@ -206,15 +206,25 @@ Không còn blocker triển khai trong phạm vi R2-04. Chưa thử điện tho�
 
 ## Phạm vi hiện tại và các giai đoạn sau
 
-| Giai đoạn | Công việc | Trạng thái hiện tại (engine R2-03C / UI R2-04) |
+| Giai đoạn | Công việc | Trạng thái hiện tại (engine R2-03C / UI R4) |
 | --- | --- | --- |
 | Offline hai người | Kết nối engine với lật/đi/ăn, khởi tạo ván, phân màu, lượt đi và kết thúc ván | Đã triển khai, dùng 15 SVG với Unicode dự phòng |
 | Trường tróc | Rà soát nguồn, xử đuổi/cảnh báo/ưu tiên hòa | Engine + unit test và UI cảnh báo/kết quả đã triển khai |
 | Online hai người | Backend Supabase riêng, mã phòng, đồng hồ, cầu hòa/chịu thua/kết thúc; bảo mật quân úp | Chưa triển khai |
-| Bot | Một Bot mạnh, chỉ dùng thông tin công khai và xác suất | Chưa triển khai |
-| Hoàn thiện giao diện | SVG có sẵn, âm thanh/UX sau nghiệm thu | SVG đã tích hợp; chưa làm âm thanh/animation |
+| Bot | Một Bot duy nhất, public-only, xác suất và tìm kiếm có giới hạn | Solo R4, Web Worker |
+| Hoàn thiện giao diện | SVG, âm thanh/UX | R3 SVG/SFX, Auto/Manual, tra cứu và popup được giữ nguyên |
 
-Mốc R2-04 kết thúc tại checkpoint `13dd02e`; phần UX/SFX tiếp tục theo yêu cầu R3 dưới đây. Online/Bot chưa triển khai.
+Mốc R2-04 kết thúc tại checkpoint `13dd02e`; phần UX/SFX tiếp tục ở R3, Solo ở R4. Online chưa triển khai. Các báo cáo mốc cũ bên dưới là lịch sử.
+
+## R4 — Solo với Bot
+
+- Mặc định Hai người cùng máy; Solo có Bạn (Người 1) và Bot (Người 2), không chọn màu/độ khó. Engine vẫn quyết định người bắt đầu ngẫu nhiên, phân màu, nước hợp lệ và toàn bộ kết quả. Đổi chế độ là ván mới có xác nhận nếu đã chơi.
+- `bot-protocol.mjs` tạo payload JSON allowlist từ public snapshot/legal actions và lịch sử sự kiện công khai. Quân úp chỉ có occupied/faceDown; seed Bot độc lập. `bot.mjs` dựng thế giả định từ xác suất có điều kiện, không hoàn lại và replay lịch sử bằng engine không đổi. Khi đánh giá một nước lật, tích phân tất cả loại/màu có thể xảy ra, không dự đoán vị trí từ một mẫu.
+- Safety pass xét thắng ngay, thua ngay, đòn bắt lại, Pháo/ngòi, Tốt/Tướng và cảnh báo 7/2. Sau đó alpha-beta tối đa 4 ply/1.400 node/~700 ms trên tối đa 8 ứng viên an toàn; chỉ nhận iteration đã hoàn tất. Luật kết thúc/lặp/hold/trường tróc trong mô phỏng vẫn do engine xử lý. Các nước lật ở sâu hơn dùng đánh giá tĩnh; đây là tìm kiếm chọn lọc, không lời hứa tối ưu tuyệt đối.
+- Worker trả fallback đã đánh giá trước kết quả; runner đối chiếu request/session/position và legal list. Watchdog 2,8 s terminate Worker, dùng fallback hợp lệ hoặc hiện nút thử lại; không retry vô hạn. Ván mới/đổi mode hủy yêu cầu, kết quả cũ bị bỏ. Controller xác thực lần cuối bằng applyAction. Chỉ tham khảo nguyên lý requestId/safety và khung fixtures của [iChess Bee 3](https://github.com/VesperKrock/ichess-turtle-system); không chép engine cờ vua hoặc sửa repo đó.
+- Benchmark tái lập: `node tests/bot-benchmark.cjs`; 20 thế × seed 7/42/991/2026/65537. Windows i5-11400H, Node 22.19.0, Chrome 157, ngày 2026-11-15: median/p95/max ms Node 14/68/301; Worker desktop 26/58/256; Worker mobile 31/65/260. CDP không hỗ trợ throttle Worker: CPU trang 6× được đo riêng với cùng thuật toán, 82/315/702 ms. 400/400 quyết định ≤1,5 s trong phép đo, 0 lỗi theo fixtures, 0/200 fallback Worker. Watchdog thực trong test treo Worker khoảng 2,8 s; không dùng fake timers để chứng minh tốc độ.
+- Baseline thực tế R3-UI02: 361/361. Kiểm thử Bot/Worker/Solo nằm ở ba suite `bot*.test.cjs`; toàn bộ hồi quy: `node --test --test-concurrency=1 tests/*.test.cjs`. Benchmark, log và ảnh chỉ lưu `.local-qa/`. Giữ engine, luật, SVG, MP3, license; không Online/Supabase.
+- Giới hạn: chưa đo điện thoại/iOS/Safari thật; Worker không khả dụng dùng fallback nhanh hoặc thông báo có thể thử lại. Không chống DevTools trong Offline; không suy ra sức mạnh hay tỷ lệ thắng từ fixtures. Bước tiếp theo là chủ dự án Solo thực chiến và gửi các nước sai trước khi bắt đầu Online.
 
 ## R3 — Offline Beta
 
