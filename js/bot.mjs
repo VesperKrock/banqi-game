@@ -9,6 +9,64 @@ const WIN = 100000;
 const at = s => (Number(s[1]) - 1) * 8 + "abcdefgh".indexOf(s[0]);
 const now = () => performance.now();
 
+// Ask the rules engine for capture relationships. Geometry on an actual board
+// is still checked by getLegalActions; a cannon's potential assumes one screen.
+const TYPES = Object.keys(COUNTS);
+const BEATS = Object.fromEntries(TYPES.map(type => [type, Object.fromEntries(TYPES.map(target => {
+  const board = Array(32).fill(null), cannon = type === "cannon";
+  board[0] = { occupied: true, color: "red", type, faceDown: false };
+  board[cannon ? 2 : 1] = { occupied: true, color: "black", type: target, faceDown: false };
+  if (cannon) board[1] = { occupied: true, faceDown: true };
+  const view = { board, turn: 0, playerColors: ["red", "black"], status: "playing" };
+  return [target, getLegalActions(view, 0).some(a => a.to === (cannon ? "c1" : "b1"))];
+}))]));
+const inventoryCache = new Map();
+let captureInventory = new WeakMap();
+const legalCache = new WeakMap();
+function legalActions(view) {
+  if (!legalCache.has(view)) legalCache.set(view, getLegalActions(view, view.turn));
+  return legalCache.get(view);
+}
+
+// Remaining counts include concealed pieces, using ONLY the public captures.
+// Potential is independent of current attacks: exposure is scored separately.
+function inventory(view) {
+  if (captureInventory.has(view.captured)) return captureInventory.get(view.captured);
+  const counts = { red: { ...COUNTS }, black: { ...COUNTS } };
+  for (const p of view.captured) counts[p.color][p.type]--;
+  const key = ["red", "black"].flatMap(c => TYPES.map(t => counts[c][t])).join(",");
+  if (inventoryCache.has(key)) {
+    const cached = inventoryCache.get(key); captureInventory.set(view.captured, cached); return cached;
+  }
+  const values = {}, totals = {};
+  const live = Object.values(counts.red).reduce((a,b) => a+b, 0) + Object.values(counts.black).reduce((a,b) => a+b, 0);
+  for (const color of ["red", "black"]) {
+    const own = counts[color], enemy = counts[color === "red" ? "black" : "red"];
+    values[color] = {}; totals[color] = 0;
+    for (const type of TYPES) {
+      const counters = TYPES.reduce((n,t) => n + (BEATS[t][type] ? enemy[t] : 0), 0);
+      // Once every counter is gone, this piece can dominate the remaining
+      // army. Losing the final answer therefore changes BOTH armies' values.
+      let worth = VALUE[type] * (1 + (counters ? .6 / (1 + counters) : 1.4));
+      // Preserve scarce answers to an opposing general, even if it is hidden.
+      // The bonus is shared by the surviving counters, not awarded per pawn.
+      if (BEATS[type].general && enemy.general) {
+        const answers = own.pawn + own.general + own.cannon;
+        worth += 450 / Math.max(1, answers);
+      }
+      // With only two pieces there is no possible cannon screen.
+      if (type === "cannon" && live <= 2) worth *= .35;
+      values[color][type] = worth;
+      totals[color] += own[type] * worth;
+    }
+  }
+  const result = { counts, values, totals };
+  if (inventoryCache.size >= 512) inventoryCache.clear();
+  inventoryCache.set(key, result);
+  captureInventory.set(view.captured, result);
+  return result;
+}
+
 export function seeded(seed) {
   let n = seed >>> 0;
   return () => ((n = (Math.imul(n, 1664525) + 1013904223) >>> 0) / 4294967296);
@@ -84,14 +142,16 @@ export function hypotheticalState(input) {
 // Board geometry/captures ALWAYS come from getLegalActions. This lightweight
 // public move is for exchange estimates only; it never adjudicates a real game.
 function publicMove(view, action, revealed) {
-  const board = [...view.board], colors = [...view.playerColors], captured = [...view.captured];
+  const board = [...view.board];
+  let colors = view.playerColors, captured = view.captured;
   if (action.type === "flip") {
     board[at(action.at)] = { ...revealed, occupied: true, faceDown: false };
     if (colors[view.turn] === null) {
+      colors = [...colors];
       colors[view.turn] = revealed.color; colors[1 - view.turn] = revealed.color === "red" ? "black" : "red";
     }
   } else {
-    if (board[at(action.to)]) captured.push(board[at(action.to)]);
+    if (board[at(action.to)]) captured = [...captured, board[at(action.to)]];
     board[at(action.to)] = board[at(action.from)]; board[at(action.from)] = null;
   }
   return { ...view, board, captured, playerColors: colors, turn: 1 - view.turn };
@@ -99,26 +159,27 @@ function publicMove(view, action, revealed) {
 
 function value(piece, view) {
   if (!piece || piece.faceDown) return 0;
-  // A pawn's exceptional ability to take the opposing general matters.
-  return VALUE[piece.type] + (piece.type === "pawn" && view.board.some(p => p && !p.faceDown && p.color !== piece.color && p.type === "general") ? 80 : 0);
+  return inventory(view).values[piece.color][piece.type];
 }
 
 function material(view, player) {
   const color = view.playerColors[player];
   if (!color) return 0;
-  // Count remaining material by public captures; unrevealed locations add no information.
-  return view.captured.reduce((score,p) => score + (p.color === color ? -VALUE[p.type] : VALUE[p.type]), 0);
+  const { totals } = inventory(view);
+  return totals[color] - totals[color === "red" ? "black" : "red"];
 }
 
 function captures(view) {
-  return getLegalActions(view, view.turn).filter(a => a.type === "move" && view.board[at(a.to)] !== null);
+  return legalActions(view).filter(a => a.type === "move" && view.board[at(a.to)] !== null);
 }
 
 function exchange(view, target, depth = 3) {
   if (!depth) return 0;
   let best = 0;
   for (const action of captures(view).filter(a => a.to === target)) {
-    best = Math.max(best, value(view.board[at(target)], view) - exchange(publicMove(view, action), target, depth - 1));
+    const after = publicMove(view, action);
+    const gain = material(after, view.turn) - material(view, view.turn);
+    best = Math.max(best, gain - exchange(after, target, depth - 1));
   }
   return best;
 }
@@ -126,8 +187,8 @@ function exchange(view, target, depth = 3) {
 function worstLoss(view) {
   let loss = 0;
   for (const a of captures(view)) {
-    const gain = value(view.board[at(a.to)], view);
     const after = publicMove(view, a);
+    const gain = material(after, view.turn) - material(view, view.turn);
     if (knownWin(after, view.turn)) return WIN;
     loss = Math.max(loss, gain - exchange(after, a.to));
   }
@@ -137,14 +198,27 @@ function worstLoss(view) {
 function pressure(view, player) {
   const ours = [], theirs = [];
   view.board.forEach((p, i) => { if (p && !p.faceDown) (p.color === view.playerColors[player] ? ours : theirs).push(i); });
-  let nearest = 12;
-  for (const a of ours) for (const b of theirs) nearest = Math.min(nearest, Math.abs(a % 8 - b % 8) + Math.abs((a >> 3) - (b >> 3)));
-  return theirs.length ? -nearest * 2 : 0;
+  let score = 0;
+  for (const target of theirs) {
+    let first = Infinity, second = Infinity;
+    for (const i of ours) {
+      if (!BEATS[view.board[i].type][view.board[target].type]) continue;
+      const dx = Math.abs(i % 8 - target % 8), dy = Math.abs((i >> 3) - (target >> 3));
+      // Cannon alignment is potential, never an assertion that a screen exists.
+      const distance = view.board[i].type === "cannon" ? Math.min(dx, dy) + 2 : dx + dy;
+      if (distance < first) { second = first; first = distance; }
+      else if (distance < second) second = distance;
+    }
+    // Coordinate multiple hunters. A rook walking toward an invulnerable
+    // general is not progress; a surviving pawn approaching it is.
+    if (Number.isFinite(first)) score -= 6 * first + (Number.isFinite(second) ? 2 * second : 0);
+  }
+  return score;
 }
 
 function knownWin(view, player) {
   const enemy = view.playerColors[1 - player];
-  return enemy !== null && (view.captured.filter(p => p.color === enemy).length === 16 || getLegalActions(view, view.turn).length === 0);
+  return enemy !== null && (view.captured.filter(p => p.color === enemy).length === 16 || legalActions(view).length === 0);
 }
 
 function assess(view, action, belief) {
@@ -164,18 +238,27 @@ function assess(view, action, belief) {
 
 export function rankSafety(snapshot, legal, { budgetMs = 1000, clock = now } = {}) {
   const start = clock(), belief = remainingPieces(snapshot), ranked = [];
+  // Captures are immutable within one decision; quiet moves and chance faces
+  // share the same inventory. Reset between calls so caller mutation cannot
+  // leave a stale profile in this cache.
+  captureInventory = new WeakMap();
+  const finish = complete => {
+    ranked.sort((a,b) => b.score - a.score || actionKey(a.action).localeCompare(actionKey(b.action)));
+    // Each retained action has completed ALL face/exchange checks. An unsafe
+    // prefix or a chase warning is never a budget fallback.
+    return { ranked: complete ? ranked : ranked.filter(c => c.risk === 0 && !snapshot.chase.warnings.some(w => actionKey(w.action) === actionKey(c.action))), complete };
+  };
   for (const action of legal) {
-    if (clock() - start >= budgetMs) return { ranked: [], complete: false };
+    if (clock() - start >= budgetMs) return finish(false);
     ranked.push({ action, ...assess(snapshot, action, belief) });
   }
-  ranked.sort((a,b) => b.score - a.score || actionKey(a.action).localeCompare(actionKey(b.action)));
-  return { ranked, complete: true };
+  return finish(true);
 }
 
 export function chooseFallback(snapshot, legal, options = {}) {
   if (snapshot.status !== "playing" || !legal.length) return null;
-  const { ranked, complete } = rankSafety(snapshot, legal, { budgetMs: 24, ...options });
-  return complete ? ranked[0]?.action ?? null : null;
+  const { ranked } = rankSafety(snapshot, legal, { budgetMs: 24, ...options });
+  return ranked[0]?.action ?? null;
 }
 
 function terminal(state, player, ply) {
@@ -194,12 +277,23 @@ export function chooseBot(input, { budgetMs = 700, maxNodes = 1400, maxDepth = 4
     const flips = legal.filter(a => a.type === "flip");
     return done(flips[Math.floor(seeded(input.seed)() * flips.length)], "opening");
   }
-  const safety = rankSafety(view, legal, { budgetMs: Math.max(0, budgetMs * .65), clock });
-  if (!safety.complete) return done(null, "budget-before-safety");
+  // Safety has priority over optional search. Reserve no artificial fraction:
+  // use only the time still available inside the same overall 700 ms budget.
+  const safety = rankSafety(view, legal, { budgetMs: Math.max(0, budgetMs - (clock() - start)), clock });
+  if (!safety.complete) {
+    const action = safety.ranked[0]?.action ?? null;
+    if (action) onFallback(action);
+    return done(action, action ? "partial-safety" : "budget-before-safety");
+  }
   let best = safety.ranked[0];
   onFallback(best.action);
-  if (best.score >= WIN - 1 || legal.length === 1) return done(best.action, "certain");
+  if (legal.length === 1) return done(best.action, "certain");
+  if (clock() - start >= budgetMs) return done(best.action, "safety");
   const root = hypotheticalState(input);
+  if (best.score >= WIN - 1 && best.action.type === "move") {
+    const next = applyAction(root, player, best.action);
+    if (next.ok && next.state.result?.winner === player) return done(best.action, "certain");
+  }
   const belief = remainingPieces(view);
   trace.chanceFaces = belief.length;
   let stopped = false;
@@ -214,15 +308,18 @@ export function chooseBot(input, { budgetMs = 700, maxNodes = 1400, maxDepth = 4
     const pub = getPublicState(state), advantage = material(pub, player);
     if (exhausted() || depth === 0) {
       const loss = worstLoss(pub);
-      return advantage + (pub.turn === player ? loss : -loss) + pressure(pub, player);
+      // Only actual engine terminal results occupy the mate-score range.
+      return Math.max(-WIN / 4, Math.min(WIN / 4, advantage + (pub.turn === player ? loss : -loss) + pressure(pub, player)));
     }
-    const moves = getLegalActions(pub, pub.turn).filter(a => a.type === "move");
-    // Future hidden squares are chance events, never a determinized oracle.
-    // Quiet hidden positions can retain their static option to flip.
-    let score = pub.board.some(p => p?.faceDown) ? advantage : pub.turn === player ? -Infinity : Infinity;
+    const moves = legalActions(pub).filter(a => a.type === "move");
+    // Future flips are not searched from a sampled identity. Bound mate claims
+    // while they remain possible, but do not award material for an imaginary
+    // pass: that used to hide the draw clock and reward leaving pieces hidden.
+    let score = pub.board.some(p => p?.faceDown) ? (pub.turn === player ? -WIN / 4 : WIN / 4) : pub.turn === player ? -Infinity : Infinity;
     if (!moves.length) return advantage;
-    moves.sort((a,b) => value(pub.board[at(b.to)], pub) - value(pub.board[at(a.to)], pub));
-    for (const a of moves) {
+    const ordered = moves.map(action => ({ action, order: value(pub.board[at(action.to)], pub) * 10 + pressure(publicMove(pub, action), pub.turn) }));
+    ordered.sort((a,b) => b.order - a.order);
+    for (const { action: a } of ordered) {
       if (exhausted()) break;
       const next = applyAction(state, pub.turn, a);
       if (!next.ok) continue;
@@ -251,19 +348,41 @@ export function chooseBot(input, { budgetMs = 700, maxNodes = 1400, maxDepth = 4
     }
     return expected;
   }
-  // Never let an incomplete iteration displace the fully evaluated safe choice.
-  // Candidates with clearly worse immediate losses cannot win on speculative depth.
-  const candidates = safety.ranked.filter(c => c.risk <= best.risk + 40 && c.score >= best.score - 180).slice(0, 8);
-  for (let depth = 2; depth <= maxDepth && !exhausted(); depth++) {
+  // Search unsafe challengers too: proven wins or escapes from proven losses
+  // can justify a sacrifice. Speculative material scores cannot do so.
+  const safe = c => c.risk <= safety.ranked[0].risk + 40 && c.score >= safety.ranked[0].score - 180;
+  const endgame = !view.board.some(p => p?.faceDown) && view.board.filter(Boolean).length <= 6;
+  const safeCandidates = safety.ranked.filter(safe).slice(0, 8);
+  // Many near-equal quiet moves must not crowd every safe chance action out
+  // of search. Reserve one slot, without enlarging the root or risk allowance.
+  const safeFlip = safety.ranked.find(c => safe(c) && c.action.type === "flip" && c.risk === 0);
+  if (safeFlip && !safeCandidates.includes(safeFlip)) safeCandidates.splice(-1, 1, safeFlip);
+  const candidates = endgame ? [...safety.ranked] : [
+    ...safeCandidates,
+    ...safety.ranked.filter(c => !safe(c) && c.action.type === "move").slice(0, 2),
+  ];
+  // Public replay supplies these visits. A small, capped preference breaks
+  // unproductive winning loops; it never admits an unsafe move, penalizes a
+  // losing defense, or changes a terminal/proven-win score.
+  const progress = new Map(candidates.map(c => [c.action, c.action.type === "move"
+    ? -Math.min(3, root.positionCounts[observationKey(publicMove(view, c.action))] || 0) * 8
+    : c.risk === 0 ? 8 : 0]));
+  const depthLimit = endgame && legal.length <= 12 && maxDepth >= 4 ? maxDepth + 2 : maxDepth;
+  for (let depth = 2; depth <= depthLimit && !exhausted(); depth++) {
     const scores = [];
     for (const candidate of candidates) {
-      scores.push({ ...candidate, searchScore: rootValue(candidate, depth) });
+      const searchScore = rootValue(candidate, depth);
+      const preference = searchScore > 0 && searchScore < WIN / 4 ? searchScore + progress.get(candidate.action) : searchScore;
+      scores.push({ ...candidate, searchScore, preference });
       if (exhausted()) break;
     }
     if (stopped) break;
-    scores.sort((a,b) => b.searchScore - a.searchScore || b.score - a.score || actionKey(a.action).localeCompare(actionKey(b.action)));
-    best = scores[0] ?? best; trace.depth = depth;
-    if (best.searchScore >= WIN - 10) break;
+    scores.sort((a,b) => b.preference - a.preference || b.score - a.score || actionKey(a.action).localeCompare(actionKey(b.action)));
+    const safest = scores.find(safe);
+    best = scores.find(c => safe(c) || c.searchScore >= WIN - 64 || (safest?.searchScore <= -WIN + 64 && c.searchScore > safest.searchScore)) ?? best;
+    trace.depth = depth;
+    candidates.sort((a,b) => scores.findIndex(s => s.action === a.action) - scores.findIndex(s => s.action === b.action));
+    if (best.searchScore >= WIN - 64) break;
   }
   return done(best.action, trace.depth ? "search" : "safety");
 }
