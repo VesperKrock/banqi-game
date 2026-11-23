@@ -166,6 +166,107 @@ document.addEventListener("DOMContentLoaded", () => {
   createReference();
   const motion = createMotion(document.getElementById("board"));
   const sound = createSound(document.getElementById("sound-toggle"));
+  const board = document.getElementById("board");
+  const dragNotice = document.createElement("p");
+  dragNotice.id = "drag-notice";
+  dragNotice.className = "drag-notice";
+  dragNotice.setAttribute("role", "status");
+  dragNotice.hidden = true;
+  document.querySelector(".board-toolbar").append(dragNotice);
+  let drag = null, suppressPointerClick = false;
+  const pointers = new Set();
+  const canInteract = () => !motion.busy && publicState?.status === "playing" && !(mode === "solo" && publicState.turn === 1);
+
+  function cancelDrag(allowTap = false) {
+    if (!drag) return;
+    const previous = drag;
+    drag = null;
+    suppressPointerClick ||= previous.moved || allowTap !== true;
+    previous.ghost?.remove();
+    if (previous.cell.hasPointerCapture(previous.id)) previous.cell.releasePointerCapture(previous.id);
+    for (const cell of cells) cell.classList.remove("drag-source", "drag-legal", "drag-over", "drag-invalid", "drag-risk");
+    dragNotice.hidden = true;
+    dragNotice.textContent = "";
+  }
+
+  function dragTarget(event) {
+    const cell = document.elementFromPoint(event.clientX, event.clientY)?.closest(".cell");
+    return cell && board.contains(cell) ? cell : null;
+  }
+  function dragAction(cell) {
+    return cell && legalActions.find(action => action.type === "move" && action.from === drag.from && action.to === coordinate(cells.indexOf(cell)));
+  }
+  document.addEventListener("pointerdown", event => {
+    pointers.add(event.pointerId);
+    if (pointers.size > 1) { cancelDrag(); suppressPointerClick = true; return; }
+    suppressPointerClick = false;
+    const cell = event.target.closest?.(".cell");
+    if (!cell || !board.contains(cell) || event.button !== 0 || !canInteract()) return;
+    const index = cells.indexOf(cell), piece = publicState.board[index];
+    drag = { id: event.pointerId, cell, from: coordinate(index), x: event.clientX, y: event.clientY,
+      session, position, moved: false, eligible: !!piece && !piece.faceDown && piece.color === publicState.playerColors[publicState.turn] };
+  }, true);
+  document.addEventListener("pointermove", event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    if (!canInteract() || drag.session !== session || drag.position !== position) return cancelDrag();
+    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 8) return;
+    drag.moved = true;
+    if (!drag.eligible) return; // A swipe on a hidden/enemy piece is never a flip/move.
+    event.preventDefault();
+    if (!drag.ghost) {
+      drag.cell.setPointerCapture(drag.id);
+      const face = drag.cell.firstElementChild, rect = face.getBoundingClientRect();
+      drag.ghost = face.cloneNode(true);
+      drag.ghost.classList.add("drag-ghost");
+      drag.ghost.setAttribute("aria-hidden", "true");
+      drag.ghost.style.width = `${rect.width}px`;
+      document.body.append(drag.ghost);
+      drag.cell.classList.add("drag-source");
+      for (const cell of cells) {
+        const action = dragAction(cell);
+        cell.classList.toggle("drag-legal", !!action);
+        cell.classList.toggle("drag-risk", !!action && publicState.chase.warnings.some(w => w.action.from === action.from && w.action.to === action.to));
+      }
+    }
+    drag.ghost.style.left = `${event.clientX}px`;
+    drag.ghost.style.top = `${event.clientY}px`;
+    const target = dragTarget(event), action = dragAction(target);
+    for (const cell of cells) {
+      cell.classList.toggle("drag-over", cell === target && !!action);
+      cell.classList.toggle("drag-invalid", cell === target && !action);
+    }
+    const warning = action && publicState.chase.warnings.find(w => w.action.from === action.from && w.action.to === action.to);
+    const message = warning ? `Cảnh báo ${warningText(publicState, warning)}` : "";
+    if (dragNotice.textContent !== message) dragNotice.textContent = message;
+    dragNotice.hidden = !message;
+  }, { passive: false });
+  document.addEventListener("pointerup", event => {
+    pointers.delete(event.pointerId);
+    if (!drag || event.pointerId !== drag.id) return;
+    const action = drag.moved && drag.eligible && canInteract() && drag.session === session && drag.position === position
+      ? dragAction(dragTarget(event)) : null;
+    cancelDrag(true);
+    if (action) perform(action);
+  }, true);
+  document.addEventListener("pointercancel", event => { pointers.delete(event.pointerId); cancelDrag(); suppressPointerClick = true; }, true);
+  // Touch initially captures the nested face; transferring capture to its cell
+  // also emits a bubbling lost event from that face, which is not a cancellation.
+  board.addEventListener("lostpointercapture", event => {
+    if (drag?.id === event.pointerId && event.target === drag.cell && !drag.cell.hasPointerCapture(drag.id)) cancelDrag();
+  });
+  board.addEventListener("click", event => {
+    if (suppressPointerClick && event.detail > 0) { event.preventDefault(); event.stopImmediatePropagation(); }
+  }, true);
+  document.addEventListener("keydown", event => { if (event.key === "Escape") cancelDrag(); });
+  document.querySelectorAll("button[data-theme], button[data-orientation], #new-game, #result-new-game")
+    .forEach(button => button.addEventListener("click", cancelDrag, true));
+  modeControl.addEventListener("change", cancelDrag, true);
+  new MutationObserver(cancelDrag).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  new MutationObserver(cancelDrag).observe(board, { attributes: true, attributeFilter: ["data-orientation", "data-animating"] });
+  for (const type of ["resize", "blur"]) window.addEventListener(type, () => { cancelDrag(); pointers.clear(); });
+  window.visualViewport?.addEventListener("resize", cancelDrag);
+  document.addEventListener("visibilitychange", () => { cancelDrag(); pointers.clear(); });
+  window.addEventListener("scroll", cancelDrag, true);
 
   function say(message) {
     // Replace one short message; repeated invalid clicks do not spam live regions.
@@ -180,6 +281,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const warnedTargets = new Map(selected === null ? [] : warnings.map((warning) => [warning.action.to, warning]));
     cells.forEach((cell, index) => {
       const at = coordinate(index), piece = snapshot.board[index];
+      cell.classList.toggle("drag-ready", snapshot.status === "playing" && !(mode === "solo" && snapshot.turn === 1)
+        && !!piece && !piece.faceDown && piece.color === snapshot.playerColors[snapshot.turn]);
       const face = cell.firstElementChild;
       cell.classList.toggle("is-selected", selected === at);
       cell.classList.toggle("can-move", destinations.has(at) && piece === null);
@@ -310,6 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function perform(action) {
+    cancelDrag();
     const result = applyAction(privateState, publicState.turn, action);
     if (!result.ok) {
       say("Nước không hợp lệ. Hãy chọn lại.");
@@ -355,6 +459,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
 
   function newGame() {
+    cancelDrag();
     bot.cancel();
     session++;
     position = 0;

@@ -372,6 +372,16 @@ button:focus-visible, .cell:focus-visible {
   cursor: default;
 }
 
+/* Only a playable revealed piece claims a touch gesture. */
+.cell.drag-ready { touch-action: none; cursor: grab; user-select: none; }
+.cell.drag-source > .piece { opacity: .3; }
+.cell.drag-legal { outline: 2px dashed var(--focus); outline-offset: -3px; }
+.cell.drag-over { background: var(--move-bg); box-shadow: inset 0 0 0 3px var(--focus); }
+.cell.drag-invalid { box-shadow: inset 0 0 0 3px var(--warning-ink); }
+.cell.drag-risk::after { content: "!"; position: absolute; top: 0; right: 3px; color: var(--warning-ink); font-weight: 800; }
+.drag-ghost { position: fixed; z-index: 10; transform: translate(-50%, -50%); pointer-events: none; user-select: none; margin: 0; }
+.drag-notice { position: absolute; inset: auto 0 0 auto; max-width: 100%; margin: 0; padding: 3px 6px; background: var(--warning-bg); color: var(--warning-ink); font-size: .82rem; pointer-events: none; z-index: 3; }
+
 .board-help {
   margin-top: 0.75rem;
   font-size: 0.875rem;

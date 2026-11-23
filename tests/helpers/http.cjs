@@ -33,6 +33,7 @@ module.exports = async function startServer({ basePath = "/", cacheAssets = fals
   let initialState = null;
   let fixtureStarts = 1;
   let rejectPlayer = null;
+  let observeActions = false;
   let assetFailure = null;
   let assetGate = null;
   const assetRequests = {};
@@ -57,15 +58,19 @@ module.exports = async function startServer({ basePath = "/", cacheAssets = fals
     response.writeHead(200, { "Content-Type": `${route[1]}; charset=utf-8`, "Cache-Control": cacheAssets && route[1] === "image/svg+xml" ? "max-age=60" : "no-store" });
     if (pathname === "/js/engine.mjs" && initialState !== null) {
       response.end(`export { getPublicState, getLegalActions } from './engine-real.mjs';
-        import { createGame as realCreateGame, applyAction as realApplyAction } from './engine-real.mjs';
+        import { createGame as realCreateGame, applyAction as realApplyAction, getPublicState as publicView } from './engine-real.mjs';
         let remaining = ${fixtureStarts}, rejectOnce = ${rejectPlayer !== null};
         export function applyAction(state, player, action) {
           if (rejectOnce && player === ${JSON.stringify(rejectPlayer)}) { rejectOnce = false; return {ok:false,error:'TEST_REJECTION'}; }
-          return realApplyAction(state, player, action);
+          const result = realApplyAction(state, player, action);
+          if (${observeActions} && result.ok) { globalThis.__qaActions.push(action); globalThis.__qaState = publicView(result.state); }
+          return result;
         }
         export function createGame() {
           if (remaining-- <= 0) return realCreateGame();
-          return ${JSON.stringify(initialState)};
+          const state = ${JSON.stringify(initialState)};
+          if (${observeActions}) { globalThis.__qaActions = []; globalThis.__qaState = publicView(state); }
+          return state;
         }`);
     } else response.end(fs.readFileSync(path.join(root, route[0])));
   });
@@ -75,7 +80,7 @@ module.exports = async function startServer({ basePath = "/", cacheAssets = fals
   });
   return {
     url: `http://127.0.0.1:${server.address().port}${basePath}`,
-    useGame(state, { starts = 1, reject = null } = {}) { initialState = structuredClone(state); fixtureStarts = starts; rejectPlayer = reject; },
+    useGame(state, { starts = 1, reject = null, observe = false } = {}) { initialState = structuredClone(state); fixtureStarts = starts; rejectPlayer = reject; observeActions = observe; },
     useAssetFailure(mode) {
       if (![null, "missing", "invalid"].includes(mode)) throw new Error("Unknown asset failure fixture");
       assetFailure = mode;
