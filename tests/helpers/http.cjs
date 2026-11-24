@@ -14,6 +14,8 @@ const routes = {
   "/js/app.js": ["js/app.js", "text/javascript"],
   "/js/offline.mjs": ["js/offline.mjs", "text/javascript"],
   "/js/effects.mjs": ["js/effects.mjs", "text/javascript"],
+  "/js/online-config.mjs": ["js/online-config.mjs", "text/javascript"],
+  "/js/online-auth.mjs": ["js/online-auth.mjs", "text/javascript"],
   "/js/bot.mjs": ["js/bot.mjs", "text/javascript"],
   "/js/bot-protocol.mjs": ["js/bot-protocol.mjs", "text/javascript"],
   "/js/bot-runner.mjs": ["js/bot-runner.mjs", "text/javascript"],

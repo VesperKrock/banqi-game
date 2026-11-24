@@ -1,0 +1,12 @@
+project_id = "banqi-game"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[functions.banqi-preflight]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/banqi-preflight/index.ts"
