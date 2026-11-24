@@ -130,8 +130,11 @@ function createBoard() {
       const css = getComputedStyle(shell), gap = parseFloat(css.getPropertyValue("--board-gap"));
       const padding = parseFloat(css.getPropertyValue("--board-padding")) * 2 + 2;
       const wide = root.dataset.wide === "true";
-      const width = area.clientWidth - (wide ? toolbar.offsetWidth + 4 : 0) - 26;
-      const height = area.clientHeight - dock.offsetHeight - (wide ? 4 : toolbar.offsetHeight + 8) - 30;
+      const main = document.querySelector("main"), mainCss = getComputedStyle(main);
+      const width = (wide ? main.clientWidth - parseFloat(mainCss.paddingLeft) - parseFloat(mainCss.paddingRight)
+        - toolbar.offsetWidth - 4 : area.clientWidth) - 26;
+      const height = (wide ? main.clientHeight - parseFloat(mainCss.paddingTop) - parseFloat(mainCss.paddingBottom)
+        : area.clientHeight - dock.offsetHeight - toolbar.offsetHeight - 8) - 30;
       // Both axes are hard budgets; no minimum can force cells off screen.
       const cell = Math.max(1, Math.min((width - padding - (columns - 1) * gap) / columns,
         (height - padding - (rows - 1) * gap) / rows));
@@ -228,7 +231,7 @@ function createBoard() {
   window.visualViewport?.addEventListener("scroll", updateLayout);
   touch.addEventListener("change", updateLayout);
   const observer = new ResizeObserver(fitBoard);
-  for (const selector of [".app-header", ".board-toolbar", ".message-dock", ".play-area"]) observer.observe(document.querySelector(selector));
+  for (const selector of ["main", ".app-header", ".board-toolbar", ".message-dock", ".play-area"]) observer.observe(document.querySelector(selector));
   updateLayout();
 }
 

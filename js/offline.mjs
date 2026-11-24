@@ -146,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastTurn = null;
   let toastTimer;
   let resultShown = false;
+  let presentingResultCapture = false;
   let lastChaseMessage = "";
   const chaseHistory = [];
   const cells = [...document.querySelectorAll(".cell")];
@@ -355,10 +356,12 @@ document.addEventListener("DOMContentLoaded", () => {
     resultToggle.hidden = !result;
     if (result && !resultShown) {
       document.getElementById("result-message").textContent = message;
-      resultShown = true;
       toast.hidden = true;
-      document.querySelectorAll("[popover]:popover-open").forEach(panel => panel.hidePopover());
-      resultDialog.showModal();
+      if (!presentingResultCapture) {
+        resultShown = true;
+        document.querySelectorAll("[popover]:popover-open").forEach(panel => panel.hidePopover());
+        resultDialog.showModal();
+      }
     }
     const notices = [];
     snapshot.chase.faults.forEach((faults, player) => {
@@ -447,11 +450,20 @@ document.addEventListener("DOMContentLoaded", () => {
     publicHistory.events.push(copyEvent(result.event));
     selected = null;
     hasPlayed = true;
+    presentingResultCapture = Boolean(result.event.captured && result.state.result);
     refresh();
     const event = result.event;
     const target = event.at ?? event.to;
     const targetFace = cells[(Number(target[1]) - 1) * 8 + "abcdefgh".indexOf(target[0])].firstElementChild;
-    motion.play(event, before, faceReady.get(targetFace));
+    const finished = motion.play(event, before, faceReady.get(targetFace));
+    if (presentingResultCapture) {
+      const token = { session, position };
+      finished.then(() => {
+        if (session !== token.session || position !== token.position) return;
+        presentingResultCapture = false;
+        render(publicState, legalActions);
+      });
+    }
     sound.play(event);
     say(event.type === "flip"
       ? `${playerLabel(event.player)} lật ${pieceName(event.piece)} tại ${event.at}.`
@@ -488,6 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
     motion.cancel();
     resultDialog.close();
     resultShown = false;
+    presentingResultCapture = false;
     lastTurn = null;
     clearTimeout(toastTimer);
     toast.hidden = true;
@@ -546,7 +559,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("result-close").addEventListener("click", closeResult);
   resultDialog.addEventListener("cancel", event => { event.preventDefault(); closeResult(); });
   resultDialog.addEventListener("close", () => { if (publicState?.result) resultToggle.focus(); });
-  resultToggle.addEventListener("click", () => resultDialog.showModal());
+  resultToggle.addEventListener("click", () => { resultShown = true; resultDialog.showModal(); });
   document.getElementById("result-new-game").addEventListener("click", newGame);
   newGame();
 });

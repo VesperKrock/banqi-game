@@ -9,10 +9,13 @@ export function createMotion(board) {
     active = null;
     if (!previous) return;
     previous.animations.forEach((animation) => animation.cancel());
+    clearTimeout(previous.timer);
     previous.back?.remove();
+    previous.soul?.remove();
     previous.face.style.removeProperty("visibility");
     previous.face.style.removeProperty("z-index");
     delete board.dataset.animating;
+    previous.resolve();
   }
   function animate(run, element, frames, duration, done) {
     const animation = element.animate(frames, { duration, easing: "ease-out" });
@@ -22,15 +25,20 @@ export function createMotion(board) {
   }
   // Called after validation, before the public board is rendered at its new position.
   function prepare(action) {
-    if (reduced.matches || !Element.prototype.animate) return null;
+    if (!Element.prototype.animate) return null;
     const cell = cellAt(action.at ?? action.from);
-    return { rect: cell.getBoundingClientRect(), back: action.type === "flip" ? cell.firstElementChild.cloneNode(true) : null };
+    const target = action.type === "move" ? cellAt(action.to)?.firstElementChild : null;
+    const soul = target && !target.classList.contains("piece-empty") ? target.cloneNode(true) : null;
+    if (reduced.matches && !soul) return null;
+    return { rect: cell.getBoundingClientRect(), soul, soulRect: soul ? target.getBoundingClientRect() : null,
+      back: action.type === "flip" ? cell.firstElementChild.cloneNode(true) : null };
   }
   function play(event, before, faceReady = Promise.resolve()) {
     cancel();
-    if (!before || reduced.matches) return;
+    if (!before || (reduced.matches && !event.captured)) return Promise.resolve();
     const cell = cellAt(event.at ?? event.to), face = cell.firstElementChild;
-    const run = { face, back: before.back, animations: [] };
+    const run = { face, back: before.back, soul: event.captured ? before.soul : null, animations: [] };
+    const finished = new Promise(resolve => { run.resolve = resolve; });
     active = run;
     board.dataset.animating = event.type === "flip" ? "flip" : event.captured ? "capture" : "move";
     if (event.type === "flip") {
@@ -57,15 +65,48 @@ export function createMotion(board) {
     } else {
       const after = cell.getBoundingClientRect();
       face.style.zIndex = "1";
-      animate(run, face, [
+      if (!reduced.matches) animate(run, face, [
         { transform: `translate(${before.rect.left - after.left}px, ${before.rect.top - after.top}px)` },
         { transform: event.captured ? "scale(1.06)" : "translate(0, 0)", offset: 0.8 },
         { transform: "scale(1)" },
-      ], 160, cancel);
-      if (event.captured) animate(run, cell, [
-        { backgroundColor: "var(--move-bg)" }, { backgroundColor: "var(--cell-bg)" },
-      ], 160, () => {});
+      ], 160, event.captured ? () => {} : cancel);
+      if (event.captured) {
+        const duration = reduced.matches ? 90 : 380, started = performance.now();
+        // This timer bounds presentation only; the accepted state and next Bot
+        // request are already independent of it. A newer event cancels the run.
+        run.timer = setTimeout(() => { if (active === run) cancel(); }, duration);
+        const soul = run.soul;
+        if (!soul) return finished;
+        soul.classList.add("motion-soul");
+        soul.setAttribute("aria-hidden", "true");
+        soul.style.visibility = "hidden";
+        const rect = before.soulRect;
+        soul.style.width = `${rect.width}px`;
+        soul.style.left = `${rect.left + rect.width / 2}px`;
+        soul.style.top = `${rect.top + rect.height / 2}px`;
+        document.body.append(soul);
+        const image = soul.querySelector("img");
+        // Never expose a pending Unicode fallback, nor switch faces halfway
+        // through a fade. Late decode callbacks cannot revive a cancelled soul.
+        const ready = soul.classList.contains("piece-pending") || soul.classList.contains("piece-svg")
+          ? image.decode().then(() => true, () => false) : Promise.resolve(false);
+        ready.then(svg => {
+          if (active !== run) return;
+          const remaining = duration - (performance.now() - started);
+          if (remaining < (reduced.matches ? 30 : 120)) return;
+          soul.classList.remove("piece-pending");
+          soul.classList.toggle("piece-svg", svg);
+          soul.style.removeProperty("visibility");
+          const lift = reduced.matches ? 0 : Math.min(18, after.height * .22);
+          animate(run, soul, [
+            { opacity: 1, transform: "translate(-50%, -50%)" },
+            { opacity: .95, transform: "translate(-50%, -50%)", offset: .15 },
+            { opacity: 0, transform: `translate(-50%, calc(-50% - ${lift}px))` },
+          ], remaining, cancel);
+        });
+      }
     }
+    return finished;
   }
   // Cancel before a control changes layout; observe system theme changes as well.
   document.querySelectorAll("button[data-theme], button[data-orientation], #new-game")
@@ -74,6 +115,9 @@ export function createMotion(board) {
   new MutationObserver(cancel).observe(board, { attributes: true, attributeFilter: ["data-orientation"] });
   reduced.addEventListener("change", cancel);
   window.addEventListener("resize", cancel);
+  window.visualViewport?.addEventListener("resize", cancel);
+  window.visualViewport?.addEventListener("scroll", cancel);
+  document.addEventListener("boardlayoutchange", cancel);
   document.addEventListener("visibilitychange", cancel);
   return { prepare, play, cancel, get busy() { return active !== null; } };
 }

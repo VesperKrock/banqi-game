@@ -20,14 +20,22 @@ test('Mobile Board First: viewport bounds, controls, warnings and preserved game
    const g=await geometry();assert.equal(g.cells.length,32);assert.equal(g.controls.length,3);assert.equal(g.compact,'true');assert.notEqual(g.overflow,'hidden');
    for(const r of [...g.cells,...g.axes,...g.controls]){assert.ok(r.width>0&&r.height>0);assert.ok(r.x>=g.v.x+safe.left-1&&r.y>=g.v.y+safe.top-1&&r.right<=g.v.x+g.v.width-safe.right+1&&r.bottom<=g.v.y+g.v.height-safe.bottom+1,JSON.stringify({r,g}));}
    if(scroll){assert.ok(g.scroll[0]<=g.v.width+1,JSON.stringify(g));assert.ok(g.scroll[1]<=g.v.height+1,JSON.stringify(g));}
-   assert.ok(g.board.bottom<=g.notice.y+1,'stable notice strip outside board');return g;
+   assert.ok(g.board.bottom<=g.notice.y+1 || g.board.right<=g.notice.x+1,'stable notice area outside board');
+   const notices=await e("[...document.querySelectorAll('.app-header h1,#game-status,#compact-notice,.message-dock>button:not([hidden])')].map(e=>{const r=e.getBoundingClientRect();return {text:e.textContent,x:r.x,y:r.y,right:r.right,bottom:r.bottom}})");
+   for(const r of notices){assert.ok(r.x>=g.v.x+safe.left-1&&r.y>=g.v.y+safe.top-1&&r.right<=g.v.x+g.v.width-safe.right+1&&r.bottom<=g.v.y+g.v.height-safe.bottom+1,JSON.stringify(r));assert.ok(r.right<=g.board.x+1||r.x>=g.board.right-1||r.bottom<=g.board.y+1||r.y>=g.board.bottom-1,'status must not cover the board');}
+   return g;
  };
  await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
- for(const [w,h] of [[320,568],[360,640],[390,844],[440,956],[844,390],[956,440],[1366,768],[1920,1080]])for(const theme of ['light','dark'])await t.test(`${w}x${h} ${theme}: real DOM bounds`,async()=>{
+ for(const [w,h] of [[320,568],[360,640],[390,844],[440,956],[844,390],[956,440],[800,360],[1366,768],[1920,1080]])for(const theme of ['light','dark'])await t.test(`${w}x${h} ${theme}: real DOM bounds`,async()=>{
    await viewport(w,h);await load();await click(`button[data-theme=${theme}]`);await settle();
-   if(w<1000){const g=await fits();assert.equal(g.orientation,w>h?'horizontal':'vertical');assert.ok(g.cells[0].width>=32);layouts.push({w,h,theme,...g});assert.equal(await e("document.querySelector('#game-mode').parentElement.id"),'settings-body');}
+   if(w<1000){const g=await fits();assert.equal(g.orientation,w>h?'horizontal':'vertical');assert.ok(g.cells[0].width>=32);layouts.push({w,h,theme,...g});assert.equal(await e("document.querySelector('#game-mode').parentElement.id"),'settings-body');
+     if(w>h){const oldCell={844:62.75,956:75.25,800:55.25}[w];assert.ok(g.cells[0].width>=oldCell*1.2,'at least 20% larger cells than UX02 landscape');}
+   }
    else {assert.equal(await e('document.documentElement.dataset.compact'),'false');assert.equal(await e("document.querySelector('#game-mode').parentElement.className"),'app-header');assert.equal(await e("getComputedStyle(document.querySelector('.piece-reference')).display"),'block');assert.equal(await e("getComputedStyle(document.querySelector('#settings-toggle')).display"),'none');assert.ok(await e("document.querySelector('#board-shell').getBoundingClientRect().bottom<=innerHeight"));}
    if(theme==='light'&&[320,390,956,1366].includes(w))await b.screenshot(`board-first-${w}`);
+ });
+ await t.test('Initial unassigned turn and all 32 concealed pieces fit landscape',async()=>{
+   for(const [w,h] of [[800,360],[844,390],[956,440]]){await viewport(w,h);await load(null);await fits();assert.match(await e("document.querySelector('#game-status').textContent"),/Lật quân đầu/);}
  });
  await t.test('Safe area, browser-height changes, zoom remains available',async()=>{
    // CDP env override: https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setSafeAreaInsetsOverride
@@ -57,7 +65,7 @@ test('Mobile Board First: viewport bounds, controls, warnings and preserved game
    for(const [w,h] of [[320,568],[956,440]]){
      await viewport(w,h);await load(state);const g=await fits();await click('#cell-10');assert.match(await e("document.querySelector('#compact-notice').textContent"),/lỗi 2\/2 — xử thua/);assert.equal(await e("document.querySelector('#chase-panel').matches(':popover-open')"),false);assert.equal(await e("document.querySelector('#chase-toggle').getAttribute('aria-expanded')"),'false');assert.deepEqual((await geometry()).board,g.board);
      await click('#chase-toggle');assert.equal(await e("document.querySelector('#chase-panel').matches(':popover-open')"),true);await click('#chase-close');await settle();assert.equal(await e('document.activeElement.id'),'chase-toggle');
-     const pt=idx=>e(`(()=>{const r=document.querySelector('#cell-${idx}').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);const a=await pt(10),z=await pt(9);await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[a]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[z]});assert.match(await e("document.querySelector('#drag-notice').textContent"),/lỗi 2\/2 và xử thua/);assert.ok(await e("document.querySelector('#drag-notice').getBoundingClientRect().top>=document.querySelector('#board-shell').getBoundingClientRect().bottom"));await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await settle();assert.equal((await view()).state.result.reason,'chase_technical_fouls');assert.equal(await e("document.querySelector('#result-dialog').open"),true);await click('#result-close');await fits();await click('#result-toggle');assert.equal(await e("document.querySelector('#result-dialog').open"),true);
+     const pt=idx=>e(`(()=>{const r=document.querySelector('#cell-${idx}').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);const a=await pt(10),z=await pt(9);await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[a]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[z]});assert.match(await e("document.querySelector('#drag-notice').textContent"),/lỗi 2\/2 và xử thua/);assert.ok(await e("(()=>{const a=document.querySelector('#drag-notice').getBoundingClientRect(),b=document.querySelector('#board-shell').getBoundingClientRect();return a.top>=b.bottom || a.left>=b.right})()"));await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await settle();assert.equal((await view()).state.result.reason,'chase_technical_fouls');assert.equal(await e("document.querySelector('#result-dialog').open"),true);await click('#result-close');await fits();await click('#result-toggle');assert.equal(await e("document.querySelector('#result-dialog').open"),true);
    }
    const draw=fixture({a1:['red','pawn'],h4:['black','pawn']});draw.noProgressPly=59;await load(draw);await click('#cell-0');await click('#cell-1');assert.equal((await view()).state.result.outcome,'draw');assert.equal(await e("document.querySelector('#result-dialog').open"),true);
  });
