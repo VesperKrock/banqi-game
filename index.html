@@ -2,7 +2,7 @@
 <html lang="vi">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="Chơi Banqi Offline hai người cùng máy hoặc Solo với Bot công bằng, bàn tự xoay và giao diện sáng/tối.">
     <title>Banqi — Offline và Solo</title>
     <link rel="icon" type="image/svg+xml" href="./assets/pieces/back.svg">
@@ -46,6 +46,7 @@
             <div class="board-tools">
               <button type="button" id="rules-toggle" popovertarget="rules-panel">Luật quân</button>
               <button type="button" popovertarget="help-panel" aria-label="Trợ giúp cách chơi">Trợ giúp</button>
+              <button type="button" id="settings-toggle" popovertarget="settings-panel">Cài đặt</button>
               <button type="button" id="result-toggle" hidden>Xem kết quả</button>
             </div>
             <p id="turn-toast" class="turn-toast" aria-hidden="true" hidden></p>
@@ -56,11 +57,13 @@
             <div id="axis-bottom" class="axis axis-bottom" aria-hidden="true"></div>
           </div>
           <div class="message-dock">
+            <p id="compact-notice" role="status" aria-live="polite" aria-atomic="true"></p>
             <p id="action-feedback" class="action-feedback" role="status" aria-live="polite" aria-atomic="true">Mở trang qua Live Server / HTTP để chơi.</p>
             <p id="bot-status" class="bot-status" role="status" aria-live="polite" hidden></p>
             <button type="button" id="bot-retry" hidden>Thử lại Bot</button>
             <button type="button" id="chase-toggle" aria-expanded="false" aria-controls="chase-panel" hidden>! Trường tróc</button>
             <div id="chase-panel" class="chase-panel" hidden>
+              <button type="button" id="chase-close">Đóng cảnh báo</button>
               <div id="chase-status" class="chase-status" role="status" aria-live="polite" aria-atomic="true"></div>
             </div>
           </div>
@@ -71,6 +74,11 @@
         </aside>
       </div>
     </main>
+    <div id="settings-panel" class="floating-panel" popover role="dialog" aria-labelledby="settings-title">
+      <button type="button" class="close-panel" popovertarget="settings-panel" popovertargetaction="hide">Đóng</button>
+      <h2 id="settings-title">Cài đặt</h2>
+      <div id="settings-body"></div>
+    </div>
     <div id="piece-popover" class="floating-panel" popover role="dialog" aria-labelledby="piece-title">
       <button type="button" class="close-panel" popovertarget="piece-popover" popovertargetaction="hide" aria-label="Đóng luật quân">Đóng</button>
       <h2 id="piece-title"></h2><p id="piece-rule"></p>

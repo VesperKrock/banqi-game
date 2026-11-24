@@ -63,7 +63,11 @@ test('Pointer drag: real mouse/touch, engine actions, cancellation and accessibi
   await t.test('Touch cancel, second finger and off-piece page scrolling',async()=>{
     await viewport(390,844);await load();const before=await view();await begin('b2','b3');await input('cancel');await clean();assert.deepEqual(await view(),before);
     const z=await begin('b2','b3');await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...z,id:1},{x:z.x+50,y:z.y,id:2}]});await input('up');await settle();await clean();assert.deepEqual(await view(),before);
-    await viewport(320,568);await e('window.scrollTo(0,0)');await input('down',{x:3,y:500});await input('move',{x:3,y:300});await input('move',{x:3,y:100});await input('up');await settle();assert.ok(await e('scrollY>0'));assert.deepEqual(await view(),before);
+    await viewport(320,568);await e('window.scrollTo(0,0)');
+    if(await e('document.documentElement.dataset.compact === "true"')) {
+      await click('#rules-toggle');await input('down',{x:150,y:480});await input('move',{x:150,y:300});await input('move',{x:150,y:100});await input('up');await settle();assert.ok(await e("document.querySelector('#rules-panel').scrollTop>0"));await click('#rules-panel .close-panel');assert.equal(await e('scrollY'),0);
+    } else {await input('down',{x:3,y:500});await input('move',{x:3,y:300});await input('move',{x:3,y:100});await input('up');await settle();assert.ok(await e('scrollY>0'));}
+    assert.deepEqual(await view(),before);
   });
   await t.test('Cancel before threshold cannot become a stale tap; rules still come from engine',async()=>{
     await viewport(1366,768);await load();const p=await point('d3');const before=await view();await input('down',p);await click('button[data-orientation=vertical]');await input('up',p);await settle();assert.deepEqual(await view(),before);

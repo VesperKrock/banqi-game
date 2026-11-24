@@ -68,11 +68,52 @@ function createBoard() {
   const cells = [];
   let mode = "auto";
   let automatic = null;
+  const root = document.documentElement;
+  const touch = window.matchMedia("(any-pointer: coarse)");
+  const settings = document.getElementById("settings-panel");
+  const settingsBody = document.getElementById("settings-body");
+  const controls = ["#game-mode", ".game-actions", ".orientation-controls", "#result-toggle"].map(selector => {
+    const element = document.querySelector(selector), anchor = document.createComment("control home");
+    element.before(anchor);
+    return { element, anchor };
+  });
+  let compact = false;
+  function updateCompact() {
+    const viewport = window.visualViewport;
+    const width = viewport?.width ?? innerWidth, height = viewport?.height ?? innerHeight;
+    const next = (touch.matches || navigator.maxTouchPoints > 0) && (width <= 700 || (height <= 600 && width <= 1200));
+    root.style.setProperty("--view-width", `${width}px`);
+    root.style.setProperty("--view-height", `${height}px`);
+    root.style.setProperty("--view-top", `${viewport?.offsetTop ?? 0}px`);
+    root.style.setProperty("--view-left", `${viewport?.offsetLeft ?? 0}px`);
+    root.dataset.compact = String(next);
+    root.dataset.wide = String(width > height);
+    if (compact === next) return;
+    const focused = document.activeElement;
+    const movedFocus = controls.some(({element}) => element.contains(focused));
+    compact = next;
+    for (const selector of ["#action-feedback", "#bot-status"]) document.querySelector(selector).setAttribute("aria-live", compact ? "off" : "polite");
+    if (!compact && settings.matches(":popover-open")) settings.hidePopover();
+    for (const {element, anchor} of controls) {
+      if (compact) (element.id === "result-toggle" ? document.querySelector(".message-dock") : settingsBody).append(element);
+      else anchor.after(element);
+    }
+    const chase = document.getElementById("chase-panel");
+    if (chase.matches(":popover-open")) chase.hidePopover();
+    if (compact) chase.setAttribute("popover", "auto");
+    else chase.removeAttribute("popover");
+    document.getElementById("chase-toggle").setAttribute("aria-expanded", String(!compact && !chase.hidden));
+    if (movedFocus) {
+      if (compact && settingsBody.contains(focused)) settings.showPopover();
+      focused.focus({ preventScroll: true });
+    }
+    document.dispatchEvent(new Event("boardlayoutchange"));
+  }
 
   // Hysteresis avoids oscillation near the portrait/landscape boundary.
   // A narrow desktop window follows the same geometry as a phone.
   function automaticOrientation() {
-    const ratio = window.innerWidth / window.innerHeight;
+    const ratio = compact && window.visualViewport ? visualViewport.width / visualViewport.height : window.innerWidth / window.innerHeight;
     if (!automatic) automatic = ratio >= 1.1 ? "horizontal" : "vertical";
     else if (automatic === "vertical" && ratio > 1.15) automatic = "horizontal";
     else if (automatic === "horizontal" && ratio < 1.05) automatic = "vertical";
@@ -85,6 +126,23 @@ function createBoard() {
     const area = document.querySelector(".play-area");
     const toolbar = document.querySelector(".board-toolbar");
     const dock = document.querySelector(".message-dock");
+    if (compact) {
+      const css = getComputedStyle(shell), gap = parseFloat(css.getPropertyValue("--board-gap"));
+      const padding = parseFloat(css.getPropertyValue("--board-padding")) * 2 + 2;
+      const wide = root.dataset.wide === "true";
+      const width = area.clientWidth - (wide ? toolbar.offsetWidth + 4 : 0) - 26;
+      const height = area.clientHeight - dock.offsetHeight - (wide ? 4 : toolbar.offsetHeight + 8) - 30;
+      // Both axes are hard budgets; no minimum can force cells off screen.
+      const cell = Math.max(1, Math.min((width - padding - (columns - 1) * gap) / columns,
+        (height - padding - (rows - 1) * gap) / rows));
+      shell.style.width = `${Math.floor(cell * columns + padding + (columns - 1) * gap + 26)}px`;
+      root.dataset.smallCells = String(cell < 32);
+      const rect = dock.getBoundingClientRect();
+      root.style.setProperty("--notice-top", `${rect.top}px`);
+      root.style.setProperty("--notice-left", `${rect.left}px`);
+      root.style.setProperty("--notice-width", `${rect.width}px`);
+      return;
+    }
     const sideDock = getComputedStyle(area).getPropertyValue("--side-dock").trim() === "1";
     area.style.setProperty("--dock-max-height", `${Math.max(64, window.innerHeight - toolbar.getBoundingClientRect().bottom - 20)}px`);
     const css = getComputedStyle(shell);
@@ -164,12 +222,14 @@ function createBoard() {
     });
   }
 
-  const updateLayout = () => setOrientation(mode === "auto" ? automaticOrientation() : mode);
+  const updateLayout = () => { updateCompact(); setOrientation(mode === "auto" ? automaticOrientation() : mode); };
   window.addEventListener("resize", updateLayout);
   window.visualViewport?.addEventListener("resize", updateLayout);
+  window.visualViewport?.addEventListener("scroll", updateLayout);
+  touch.addEventListener("change", updateLayout);
   const observer = new ResizeObserver(fitBoard);
   for (const selector of [".app-header", ".board-toolbar", ".message-dock", ".play-area"]) observer.observe(document.querySelector(selector));
-  setOrientation(automaticOrientation());
+  updateLayout();
 }
 
 // Apply theme before paint; build the stable board before the module controller starts.

@@ -152,6 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("game-status");
   const players = document.getElementById("player-colors");
   const feedback = document.getElementById("action-feedback");
+  const compactNotice = document.getElementById("compact-notice");
   const chaseStatus = document.getElementById("chase-status");
   const chasePanel = document.getElementById("chase-panel");
   const chaseToggle = document.getElementById("chase-toggle");
@@ -265,12 +266,28 @@ document.addEventListener("DOMContentLoaded", () => {
   new MutationObserver(cancelDrag).observe(board, { attributes: true, attributeFilter: ["data-orientation", "data-animating"] });
   for (const type of ["resize", "blur"]) window.addEventListener(type, () => { cancelDrag(); pointers.clear(); });
   window.visualViewport?.addEventListener("resize", cancelDrag);
+  document.addEventListener("boardlayoutchange", cancelDrag);
   document.addEventListener("visibilitychange", () => { cancelDrag(); pointers.clear(); });
   window.addEventListener("scroll", cancelDrag, true);
 
   function say(message) {
     // Replace one short message; repeated invalid clicks do not spam live regions.
     if (feedback.textContent !== message) feedback.textContent = message;
+    updateCompactNotice();
+  }
+
+  function updateCompactNotice() {
+    if (!publicState) return;
+    const warnings = publicState.chase.warnings.filter(w => selected === null || w.action.from === selected);
+    const warning = warnings.toSorted((a, b) => b.nextFault - a.nextFault)[0];
+    const faults = publicState.chase.faults.map((n, i) => n ? `${playerLabel(i)}: lỗi ${n}/2` : "").filter(Boolean);
+    const message = warning ? `Nước có dấu !: lỗi ${warning.nextFault}/2${warning.losesGame ? " — xử thua" : "; thêm một lỗi sẽ thua"}.`
+      : faults.length ? `Trường tróc · ${faults.join(" · ")}.`
+      : publicState.chase.runs.some(runs => runs.some(run => run.count >= 5)) ? "Đang đuổi liên tục. Mở Trường tróc để xem hậu quả."
+      : publicState.chase.drawDeferred.length ? "Chưa hòa: còn đuổi quân. Mở Trường tróc để xem chi tiết."
+      : botStatus.textContent || feedback.textContent;
+    if (compactNotice.textContent !== message) compactNotice.textContent = message;
+    compactNotice.classList.toggle("is-warning", !!warning || !!faults.length || !!publicState.chase.drawDeferred.length);
   }
 
   // Rendering accepts only an allowlisted public snapshot and public actions.
@@ -377,8 +394,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (pinned) chasePanel.hidden = false;
     chaseToggle.hidden = !chaseMessage && !chaseHistory.length;
     chaseToggle.textContent = pinned ? "! Nước có nguy cơ lỗi" : "! Trường tróc";
-    chaseToggle.setAttribute("aria-expanded", String(!chasePanel.hidden));
+    chaseToggle.setAttribute("aria-expanded", String(document.documentElement.dataset.compact === "true" ? chasePanel.matches(":popover-open") : !chasePanel.hidden));
     history.hidden = !chaseHistory.length;
+    updateCompactNotice();
   }
 
   function refresh() {
@@ -390,6 +408,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function botMessage(message = "") {
     if (botStatus.textContent !== message) botStatus.textContent = message;
     botStatus.hidden = !message;
+    updateCompactNotice();
   }
 
   function scheduleBot() {
@@ -504,10 +523,20 @@ document.addEventListener("DOMContentLoaded", () => {
     newGame();
   });
   chaseToggle.addEventListener("click", () => {
+    if (document.documentElement.dataset.compact === "true") {
+      if (chasePanel.matches(":popover-open")) chasePanel.hidePopover();
+      else { chasePanel.hidden = false; chasePanel.showPopover(); document.getElementById("chase-close").focus({preventScroll:true}); }
+      return;
+    }
     if (chasePanel.dataset.pinned === "true") return;
     chasePanel.hidden = !chasePanel.hidden;
     chaseToggle.setAttribute("aria-expanded", String(!chasePanel.hidden));
     if (!chaseStatus.textContent) history.open = true;
+  });
+  document.getElementById("chase-close").addEventListener("click", () => chasePanel.hidePopover());
+  chasePanel.addEventListener("toggle", event => {
+    chaseToggle.setAttribute("aria-expanded", String(event.newState === "open"));
+    if (event.newState === "closed" && !resultDialog.open && !chaseToggle.hidden) chaseToggle.focus({preventScroll:true});
   });
   function closeResult() {
     resultDialog.close();
