@@ -1,0 +1,26 @@
+/* Loaded only for ?onlinePreview=1. No selectors affect the existing game. */
+.online-lobby {
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(var(--lobby-height, 100dvh) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border: 2px solid var(--button-border);
+  border-radius: 12px;
+  background: var(--page-bg);
+  color: var(--text);
+}
+.online-lobby::backdrop { background: rgb(0 0 0 / 45%); }
+.online-lobby header, .online-lobby .online-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.online-lobby header { justify-content: space-between; }
+.online-lobby h2 { font-size: 1.2rem; margin: 0; }
+.online-lobby form { margin-block: 16px; }
+.online-lobby label { display: block; margin-bottom: 6px; }
+.online-lobby input { box-sizing: border-box; width: 9ch; min-height: 44px; font: 1.4rem ui-monospace, monospace; color: var(--text); background: var(--button-bg); border: 1px solid var(--button-border); border-radius: 6px; padding: 6px; }
+.online-lobby output { font: bold 1.5rem ui-monospace, monospace; letter-spacing: .12em; }
+.online-lobby button { min-height: 44px; }
+.online-lobby [hidden] { display: none !important; }
+.online-lobby small { display: block; color: var(--muted); }
+.online-lobby #online-status { min-height: 1.5em; }
+.online-preview-open { margin-block: 12px; }

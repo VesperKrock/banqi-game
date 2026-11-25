@@ -16,6 +16,9 @@ const routes = {
   "/js/effects.mjs": ["js/effects.mjs", "text/javascript"],
   "/js/online-config.mjs": ["js/online-config.mjs", "text/javascript"],
   "/js/online-auth.mjs": ["js/online-auth.mjs", "text/javascript"],
+  "/js/online-rooms.mjs": ["js/online-rooms.mjs", "text/javascript"],
+  "/js/online-lobby.mjs": ["js/online-lobby.mjs", "text/javascript"],
+  "/online-lobby.css": ["online-lobby.css", "text/css"],
   "/js/bot.mjs": ["js/bot.mjs", "text/javascript"],
   "/js/bot-protocol.mjs": ["js/bot-protocol.mjs", "text/javascript"],
   "/js/bot-runner.mjs": ["js/bot-runner.mjs", "text/javascript"],
@@ -31,7 +34,7 @@ for (const color of ["red", "black"]) for (const type of ["general", "advisor", 
 routes["/assets/pieces/back.svg"] = ["assets/pieces/back.svg", "image/svg+xml"];
 for (const name of ["flip", "move", "capture"]) routes[`/assets/sfx/${name}.mp3`] = [`assets/sfx/${name}.mp3`, "audio/mpeg"];
 
-module.exports = async function startServer({ basePath = "/", cacheAssets = false } = {}) {
+module.exports = async function startServer({ basePath = "/", cacheAssets = false, port = 0 } = {}) {
   let initialState = null;
   let fixtureStarts = 1;
   let rejectPlayer = null;
@@ -78,7 +81,7 @@ module.exports = async function startServer({ basePath = "/", cacheAssets = fals
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(port, "127.0.0.1", resolve);
   });
   return {
     url: `http://127.0.0.1:${server.address().port}${basePath}`,

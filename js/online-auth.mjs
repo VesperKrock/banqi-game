@@ -56,7 +56,26 @@ export function createOnlineAuth({ loadSdk = () => import(SUPABASE_SDK_URL), sto
       capabilities: { preflight: true, rooms: false, gameplay: false } };
   }
 
-  return Object.freeze({ ensureIdentity, preflight });
+  async function roomAction(body, { signal } = {}) {
+    const supabase = await client();
+    const session = await supabase.auth.getSession();
+    if (session.error || !session.data.session) throw Object.assign(new Error('AUTH_REQUIRED'), { code: 'AUTH_REQUIRED' });
+    const result = await supabase.functions.invoke('banqi-rooms', { method: 'POST', body, signal });
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (result.error) {
+      let detail;
+      try { detail = await result.error.context?.json(); } catch { /* No raw SDK/HTTP errors escape. */ }
+      const known = ['INVALID_INPUT', 'RATE_LIMIT', 'ROOM_UNAVAILABLE', 'ROOM_FULL', 'ALREADY_IN_ROOM',
+        'FORBIDDEN', 'STALE_ROOM', 'CODE_UNAVAILABLE'];
+      const code = result.error.context?.status === 401 ? 'AUTH_REQUIRED' :
+        (known.includes(detail?.error) ? detail.error : 'UNAVAILABLE');
+      throw Object.assign(new Error(code), { code, retryAfter: code === 'RATE_LIMIT' ?
+        Math.min(3600, Math.max(1, Number(detail.retryAfter) || 60)) : 0 });
+    }
+    return result.data;
+  }
+
+  return Object.freeze({ ensureIdentity, preflight, roomAction });
 }
 
 export const onlineAuth = createOnlineAuth();

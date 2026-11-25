@@ -240,6 +240,16 @@ function createBoard() {
 if (typeof document !== "undefined") {
   initializeTheme();
   document.addEventListener("DOMContentLoaded", createBoard);
+  // Preview is deliberately opt-in; normal Offline/Solo startup loads no Online module.
+  if (new URLSearchParams(location.search).get("onlinePreview") === "1") {
+    document.addEventListener("DOMContentLoaded", () => {
+      import("./online-lobby.mjs").then(module => module.mountOnlineLobby()).catch(() => {
+        const notice = document.createElement("p");
+        notice.textContent = "Không mở được phòng chờ thử nghiệm. Hãy tải lại trang.";
+        document.getElementById("help-panel").append(notice);
+      });
+    });
+  }
 }
 
 if (typeof module !== "undefined" && module.exports) {

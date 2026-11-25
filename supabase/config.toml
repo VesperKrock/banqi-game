@@ -10,3 +10,8 @@ max_rows = 1000
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/banqi-preflight/index.ts"
+
+[functions.banqi-rooms]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/banqi-rooms/index.ts"
