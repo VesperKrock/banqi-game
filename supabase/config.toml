@@ -15,3 +15,8 @@ entrypoint = "./functions/banqi-preflight/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/banqi-rooms/index.ts"
+
+[functions.banqi-match]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/banqi-match/index.ts"
