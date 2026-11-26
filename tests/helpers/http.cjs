@@ -18,6 +18,7 @@ const routes = {
   "/js/online-auth.mjs": ["js/online-auth.mjs", "text/javascript"],
   "/js/online-rooms.mjs": ["js/online-rooms.mjs", "text/javascript"],
   "/js/online-lobby.mjs": ["js/online-lobby.mjs", "text/javascript"],
+  "/js/online-match.mjs": ["js/online-match.mjs", "text/javascript"],
   "/online-lobby.css": ["online-lobby.css", "text/css"],
   "/js/bot.mjs": ["js/bot.mjs", "text/javascript"],
   "/js/bot-protocol.mjs": ["js/bot-protocol.mjs", "text/javascript"],

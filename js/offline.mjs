@@ -3,6 +3,11 @@ import { createMotion, createSound } from "./effects.mjs";
 import { createBotRunner } from "./bot-runner.mjs";
 import { copyPublic, copyEvent, createBotInput, matchLegal } from "./bot-protocol.mjs";
 
+// A public view lease, never the local private game. The preview reuses the
+// existing input/render path while all local mutations and Bot work are paused.
+let resolveBoard;
+export const boardReady = new Promise(resolve => { resolveBoard = resolve; });
+
 const SYMBOLS = {
   red: { general: "帥", advisor: "仕", elephant: "相", rook: "俥", horse: "傌", cannon: "炮", pawn: "兵" },
   black: { general: "將", advisor: "士", elephant: "象", rook: "車", horse: "馬", cannon: "砲", pawn: "卒" },
@@ -134,13 +139,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let legalActions = [];
   let selected = null;
   let hasPlayed = false;
+  let external = null;
   let mode = "local", session = 0, position = 0, botSeed = 0;
   let publicHistory;
   const bot = createBotRunner();
   const modeControl = document.getElementById("game-mode");
   const botStatus = document.getElementById("bot-status");
   const botRetry = document.getElementById("bot-retry");
-  const playerLabel = player => mode === "solo" ? (player === 0 ? "Bạn" : "Bot") : `Người ${player + 1}`;
+  const playerLabel = player => external ? (player === external.player ? `bạn (Người ${player + 1})` : `đối phương (Người ${player + 1})`) : mode === "solo" ? (player === 0 ? "Bạn" : "Bot") : `Người ${player + 1}`;
   const playerName = (snapshot, player) => describePlayer(snapshot, player, playerLabel(player));
   const warningText = (snapshot, warning) => describeWarning(snapshot, warning, playerName);
   let lastTurn = null;
@@ -177,7 +183,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelector(".board-toolbar").append(dragNotice);
   let drag = null, suppressPointerClick = false;
   const pointers = new Set();
-  const canInteract = () => !motion.busy && publicState?.status === "playing" && !(mode === "solo" && publicState.turn === 1);
+  const ownsTurn = () => external ? external.ready && publicState?.turn === external.player : !(mode === "solo" && publicState?.turn === 1);
+  const canInteract = () => !motion.busy && publicState?.status === "playing" && ownsTurn();
 
   function cancelDrag(allowTap = false) {
     if (!drag) return;
@@ -299,7 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const warnedTargets = new Map(selected === null ? [] : warnings.map((warning) => [warning.action.to, warning]));
     cells.forEach((cell, index) => {
       const at = coordinate(index), piece = snapshot.board[index];
-      cell.classList.toggle("drag-ready", snapshot.status === "playing" && !(mode === "solo" && snapshot.turn === 1)
+      cell.classList.toggle("drag-ready", snapshot.status === "playing" && ownsTurn()
         && !!piece && !piece.faceDown && piece.color === snapshot.playerColors[snapshot.turn]);
       const face = cell.firstElementChild;
       cell.classList.toggle("is-selected", selected === at);
@@ -308,7 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const warning = warnedTargets.get(at);
       cell.classList.toggle("chase-warning", Boolean(warning));
       cell.setAttribute("aria-pressed", String(selected === at));
-      cell.setAttribute("aria-disabled", String(snapshot.status === "finished" || (mode === "solo" && snapshot.turn === 1)));
+      cell.setAttribute("aria-disabled", String(snapshot.status === "finished" || !ownsTurn()));
       // Hidden pieces never enter the color/type branch, including attributes.
       renderFace(face, piece, destinations.has(at));
       let label;
@@ -344,7 +351,7 @@ document.addEventListener("DOMContentLoaded", () => {
       : result
       ? `${result.outcome === "win" ? `${playerLabel(result.winner)} thắng` : "Hòa"} — ${REASONS[result.reason]}.`
       : `Lượt ${playerLabel(snapshot.turn)}${snapshot.playerColors[snapshot.turn] ? ` · ${COLORS[snapshot.playerColors[snapshot.turn]]}` : " · Lật quân đầu để phân màu"}`;
-    const statusMessage = result ? "Ván đã kết thúc" : message;
+    const statusMessage = external && !external.ready && external.shortStatus ? external.shortStatus : result ? "Ván đã kết thúc" : message;
     if (status.textContent !== statusMessage) status.textContent = statusMessage;
     if (lastTurn !== null && lastTurn !== snapshot.turn && !result) {
       clearTimeout(toastTimer);
@@ -403,6 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function refresh() {
+    if (external) return;
     publicState = getPublicState(privateState);
     legalActions = getLegalActions(publicState, publicState.turn);
     render(publicState, legalActions);
@@ -415,6 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function scheduleBot() {
+    if (external) return;
     if (mode !== "solo" || publicState.status !== "playing" || publicState.turn !== 1) return;
     botRetry.hidden = true;
     botMessage("Bot đang tính…");
@@ -423,7 +432,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // only sanitized observations/events, including faces AFTER a real reveal.
     const input = createBotInput(publicState, legalActions, publicHistory, botSeed ^ position);
     bot.request(input, token).then(result => {
-      if (token.session !== session || token.position !== position || mode !== "solo" || publicState.turn !== 1 || publicState.status !== "playing") return;
+      if (external || token.session !== session || token.position !== position || mode !== "solo" || publicState.turn !== 1 || publicState.status !== "playing") return;
       if (result.status === "cancelled") return;
       botMessage();
       const action = result.status === "ok" ? matchLegal(result.action, legalActions) : null;
@@ -436,6 +445,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function perform(action) {
     cancelDrag();
+    if (external) return canInteract() ? external.submit(action) : false;
     const result = applyAction(privateState, publicState.turn, action);
     if (!result.ok) {
       say("Nước không hợp lệ. Hãy chọn lại.");
@@ -473,7 +483,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   cells.forEach((cell, index) => cell.addEventListener("click", () => {
-    if (motion.busy || publicState.status === "finished" || (mode === "solo" && publicState.turn === 1)) return;
+    if (!canInteract()) return;
     const at = coordinate(index);
     const flip = legalActions.find((action) => action.type === "flip" && action.at === at);
     if (flip) return perform(flip);
@@ -490,6 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
 
   function newGame() {
+    if (external) return;
     cancelDrag();
     bot.cancel();
     session++;
@@ -519,6 +530,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   modeControl.addEventListener("change", () => {
+    if (external) { modeControl.value = mode; return; }
     const next = modeControl.value;
     if (next === mode) return;
     if (hasPlayed && publicState.status === "playing" && !window.confirm("Đổi chế độ sẽ bỏ ván đang chơi và bắt đầu ván mới?")) {
@@ -532,6 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
   botRetry.addEventListener("click", scheduleBot);
 
   document.getElementById("new-game").addEventListener("click", () => {
+    if (external) return;
     if (hasPlayed && publicState.status === "playing" && !window.confirm("Ván đang chơi sẽ bị bỏ. Bắt đầu ván mới?")) return;
     newGame();
   });
@@ -562,4 +575,64 @@ document.addEventListener("DOMContentLoaded", () => {
   resultToggle.addEventListener("click", () => { resultShown = true; resultDialog.showModal(); });
   document.getElementById("result-new-game").addEventListener("click", newGame);
   newGame();
+  resolveBoard(Object.freeze({
+    take({ player, submit }) {
+      if (external) throw Error("BOARD_ALREADY_OWNED");
+      const saved = { position, selected, resultShown, feedback: feedback.textContent, chase: [...chaseHistory] };
+      const lease = { player, submit, ready: false };
+      external = lease; session++; bot.cancel(); cancelDrag(); motion.cancel(); sound.stop();
+      pointers.clear(); suppressPointerClick = false; selected = null;
+      clearTimeout(toastTimer); toast.hidden = true; botMessage(); botRetry.hidden = true;
+      resultDialog.close(); resultShown = false; presentingResultCapture = false; lastTurn = null;
+      chaseHistory.length = 0; lastChaseMessage = ""; historyCopy.textContent = ""; chasePanel.hidden = true;
+      board.dataset.owner = "online";
+      const controls = [modeControl, document.getElementById("new-game"), document.getElementById("result-new-game")];
+      controls.forEach(c => { c.disabled = true; });
+      return Object.freeze({
+        show(match, { interactive = false, message = "", shortStatus = "", event = null } = {}) {
+          if (external !== lease) return;
+          lease.ready = interactive; lease.shortStatus = shortStatus;
+          const changed = lease.version !== match.version || lease.roomId !== match.roomId;
+          if (changed || !interactive) cancelDrag();
+          lease.version = match.version; lease.roomId = match.roomId;
+          let before = null;
+          if (event) { motion.cancel(); before = motion.prepare(event); }
+          else if (changed) motion.cancel();
+          if (changed) { selected = null; position++; }
+          if (changed) publicState = match.snapshot;
+          legalActions = getLegalActions(publicState, lease.player);
+          if (changed) presentingResultCapture = !!(event?.captured && publicState.result);
+          render(publicState, legalActions); botMessage(message);
+          if (event) {
+            const target = event.at ?? event.to;
+            const face = cells[(Number(target[1]) - 1) * 8 + "abcdefgh".indexOf(target[0])].firstElementChild;
+            const token = { session, position };
+            motion.play(event, before, faceReady.get(face)).then(() => {
+              if (external !== lease || session !== token.session || position !== token.position) return;
+              presentingResultCapture = false; render(publicState, legalActions);
+            });
+            sound.play(event);
+            say(event.type === "flip" ? `${playerLabel(event.player)} lật ${pieceName(event.piece)} tại ${event.at}.`
+              : `${playerLabel(event.player)}: ${pieceName(event.piece)} ${event.from} → ${event.to}${event.captured ? `, ăn ${pieceName(event.captured)}` : ""}.`);
+          } else if (changed) say("Online preview · Trạng thái đã đồng bộ.");
+        },
+        freeze(message) {
+          if (external !== lease) return;
+          lease.ready = false; selected = null; cancelDrag();
+          render(publicState, []); botMessage(message);
+        },
+        release() {
+          if (external !== lease) return;
+          session++; motion.cancel(); sound.stop(); cancelDrag(); external = null;
+          pointers.clear(); suppressPointerClick = false; delete board.dataset.owner;
+          controls.forEach(c => { c.disabled = false; }); resultDialog.close();
+          position = saved.position; selected = saved.selected; resultShown = saved.resultShown;
+          presentingResultCapture = false; lastTurn = null; clearTimeout(toastTimer); toast.hidden = true;
+          chaseHistory.splice(0, chaseHistory.length, ...saved.chase); historyCopy.textContent = saved.chase.join("\n\n");
+          lastChaseMessage = ""; chasePanel.hidden = true; botMessage(); refresh(); say(saved.feedback); scheduleBot();
+          cells[0].focus({ preventScroll: true });
+        },
+      });
+    },
+  }));
 });

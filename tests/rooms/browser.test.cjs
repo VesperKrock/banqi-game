@@ -16,11 +16,11 @@ test('Preview-only lobby: keyboard, mobile, lifecycle and existing Offline state
   const mock=`let room=null;window.qaRoomRequests=[];export const onlineAuth={ensureIdentity:async()=>({id:'11111111-1111-4111-8111-111111111111'}),
     roomAction:async(body)=>{window.qaRoomRequests.push(structuredClone(body));
     if(body.action==='create')room={roomId:'22222222-2222-4222-8222-222222222222',code:'004215',role:'host',seats:[true,false],lobbyStatus:'waiting',revision:0,expiresAt:new Date(Date.now()+1200000).toISOString()};
-    if(body.action==='cancel')room=null;return {ok:true,room};}};`;
+    if(body.action==='cancel')room=null;return {ok:true,room};},matchAction:async()=>({ok:true,match:null})};`;
   await b.send('Fetch.fulfillRequest',{requestId:interception.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'text/javascript'}],body:Buffer.from(mock).toString('base64')});
   await b.send('Fetch.disable');await wait(`document.querySelector('#online-create')&&!document.querySelector('#online-create').disabled`);
   await t.test('Preview label, focus and Escape close restore game controls',async()=>{
-    assert.match(await e(`document.querySelector('#online-lobby').textContent`),/chưa chơi Online/);
+    assert.match(await e(`document.querySelector('#online-lobby').textContent`),/Chơi Online thử nghiệm/);
     assert.equal(await e(`document.querySelector('#online-lobby').contains(document.activeElement)`),true);
     await b.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await b.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
     await wait(`!document.querySelector('#online-lobby').open`);

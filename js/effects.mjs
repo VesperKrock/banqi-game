@@ -147,6 +147,7 @@ export function createSound(button, sources = SOUNDS) {
   });
   update();
   return {
+    stop,
     play(event) {
       const key = event.type === "flip" ? "flip" : event.type === "move" ? (event.captured ? "capture" : "move") : null;
       if (!available || !enabled || !key || failed.has(key)) return;

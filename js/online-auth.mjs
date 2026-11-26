@@ -56,17 +56,18 @@ export function createOnlineAuth({ loadSdk = () => import(SUPABASE_SDK_URL), sto
       capabilities: { preflight: true, rooms: false, gameplay: false } };
   }
 
-  async function roomAction(body, { signal } = {}) {
+  async function invokeAction(endpoint, body, { signal } = {}) {
     const supabase = await client();
     const session = await supabase.auth.getSession();
     if (session.error || !session.data.session) throw Object.assign(new Error('AUTH_REQUIRED'), { code: 'AUTH_REQUIRED' });
-    const result = await supabase.functions.invoke('banqi-rooms', { method: 'POST', body, signal });
+    const result = await supabase.functions.invoke(endpoint, { method: 'POST', body, signal });
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     if (result.error) {
       let detail;
       try { detail = await result.error.context?.json(); } catch { /* No raw SDK/HTTP errors escape. */ }
       const known = ['INVALID_INPUT', 'RATE_LIMIT', 'ROOM_UNAVAILABLE', 'ROOM_FULL', 'ALREADY_IN_ROOM',
-        'FORBIDDEN', 'STALE_ROOM', 'CODE_UNAVAILABLE'];
+        'FORBIDDEN', 'STALE_ROOM', 'CODE_UNAVAILABLE', 'NOT_FOUND', 'NOT_READY', 'REQUEST_CONFLICT',
+        'STALE_VERSION', 'NOT_YOUR_TURN', 'GAME_OVER', 'ILLEGAL_ACTION', 'ACTIVE_MATCH_EXISTS', 'RECEIPT_LIMIT'];
       const code = result.error.context?.status === 401 ? 'AUTH_REQUIRED' :
         (known.includes(detail?.error) ? detail.error : 'UNAVAILABLE');
       throw Object.assign(new Error(code), { code, retryAfter: code === 'RATE_LIMIT' ?
@@ -75,7 +76,9 @@ export function createOnlineAuth({ loadSdk = () => import(SUPABASE_SDK_URL), sto
     return result.data;
   }
 
-  return Object.freeze({ ensureIdentity, preflight, roomAction });
+  const roomAction = (body, options) => invokeAction('banqi-rooms', body, options);
+  const matchAction = (body, options) => invokeAction('banqi-match', body, options);
+  return Object.freeze({ ensureIdentity, preflight, roomAction, matchAction });
 }
 
 export const onlineAuth = createOnlineAuth();

@@ -7,7 +7,7 @@ const { spawn } = require("node:child_process");
 const startServer = require("./http.cjs");
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-module.exports = async function launchChrome({ suite = "regression", basePath = "/", cacheAssets = false, port = 0 } = {}) {
+module.exports = async function launchChrome({ suite = "regression", basePath = "/", cacheAssets = false, port = 0, profilePath } = {}) {
   const executable = [process.env.CHROME_PATH,
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
@@ -20,8 +20,10 @@ module.exports = async function launchChrome({ suite = "regression", basePath = 
   fs.mkdirSync(suiteOutput, { recursive: true });
   // Keep earlier QA evidence intact instead of overwriting screenshots/reports.
   const output = fs.mkdtempSync(path.join(suiteOutput, "run-"));
-  const profile = fs.mkdtempSync(path.join(output, "profile-"));
+  const profile = profilePath ? path.resolve(profilePath) : fs.mkdtempSync(path.join(output, "profile-"));
+  if (profilePath && (!profile.startsWith(path.join(root, ".local-qa") + path.sep) || !fs.statSync(profile).isDirectory())) throw Error("QA profile must stay inside .local-qa");
   const server = await startServer({ basePath, cacheAssets, port });
+  const launchedAt = Date.now();
   const browser = spawn(executable, ["--headless=new", "--disable-gpu", "--no-first-run",
     "--no-default-browser-check", "--disable-background-networking", "--remote-debugging-port=0",
     `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore", windowsHide: true });
@@ -55,7 +57,8 @@ module.exports = async function launchChrome({ suite = "regression", basePath = 
       if (tries > 100) throw new Error("Chrome did not publish a readable DevTools port");
       try {
         // Windows can briefly lock this file while Chrome creates it.
-        const candidate = fs.readFileSync(portFile, "utf8").split(/\r?\n/)[0];
+        const candidate = (!profilePath || fs.statSync(portFile).mtimeMs >= launchedAt)
+          ? fs.readFileSync(portFile, "utf8").split(/\r?\n/)[0] : "";
         if (/^\d+$/.test(candidate)) port = candidate;
       } catch (error) {
         if (!["ENOENT", "EBUSY", "EPERM"].includes(error.code)) throw error;
@@ -117,7 +120,7 @@ module.exports = async function launchChrome({ suite = "regression", basePath = 
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(data, "base64"));
   }
 
-  return { send, evaluate, navigate, screenshot, close, errors, output, waitForEvent,
+  return { send, evaluate, navigate, screenshot, close, errors, output, profile, waitForEvent,
     useGame: server.useGame, useAssetFailure: server.useAssetFailure, assetRequestCounts: server.assetRequestCounts,
     holdAsset: server.holdAsset };
 };
